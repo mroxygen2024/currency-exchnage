@@ -145,6 +145,22 @@ async def update_or_create_rate(
     }
     await ws_manager.broadcast_to_channel(channel=pair, message=payload)
 
+    # Queue threshold alert check task asynchronously
+    try:
+        from app.modules.notifications.tasks import check_threshold_alerts_task
+        await check_threshold_alerts_task.kiq(
+            base=base_upper,
+            target=target_upper,
+            current_rate=rate,
+        )
+        logger.info("Successfully queued threshold alert checks", pair=pair, rate=rate)
+    except Exception as exc:
+        logger.error(
+            "Failed to queue check_threshold_alerts_task",
+            pair=pair,
+            error=str(exc),
+        )
+
     return db_rate
 
 

@@ -5,6 +5,10 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+# Force environment to 'testing' for all tests
+from app.core.config import settings
+settings.ENV = "testing"
+
 from app.core.database import Base, get_db
 from app.core.redis import get_redis
 from app.main import app

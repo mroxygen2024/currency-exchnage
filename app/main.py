@@ -19,6 +19,7 @@ from app.modules.currency.websocket import (
 )
 from app.modules.favorites.router import router as favorites_router
 from app.modules.health.router import router as health_router
+from app.modules.notifications.router import router as notifications_router
 from app.modules.users.router import router as users_router
 from app.tasks.broker import broker
 
@@ -128,3 +129,4 @@ app.include_router(currency_router, prefix=settings.API_V1_STR)
 app.include_router(history_router, prefix=settings.API_V1_STR)
 app.include_router(favorites_router, prefix=settings.API_V1_STR)
 app.include_router(analytics_router, prefix=settings.API_V1_STR)
+app.include_router(notifications_router, prefix=settings.API_V1_STR)
