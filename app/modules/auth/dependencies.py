@@ -36,9 +36,9 @@ async def get_current_active_user(
             message="User not found.",
             details={"error_code": "USER_NOT_FOUND"},
         )
-    if not user.is_active:
+    if not user.is_active or user.is_deleted:
         raise UnauthorizedException(
-            message="User account is deactivated.",
+            message="User account is deactivated or deleted.",
             details={"error_code": "USER_DEACTIVATED"},
         )
     return user

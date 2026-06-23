@@ -75,9 +75,9 @@ class AuthService:
                 details={"error_code": "INVALID_CREDENTIALS"},
             )
 
-        if not user.is_active:
+        if not user.is_active or user.is_deleted:
             raise UnauthorizedException(
-                message="User account is deactivated.",
+                message="User account is deactivated or deleted.",
                 details={"error_code": "USER_DEACTIVATED"},
             )
 
@@ -168,9 +168,9 @@ class AuthService:
 
         # Retrieve user to check if they are still active
         user = await self.user_repo.get_by_id(db_token.user_id)
-        if not user or not user.is_active:
+        if not user or not user.is_active or user.is_deleted:
             raise UnauthorizedException(
-                message="User is inactive or not found.",
+                message="User is inactive, deleted, or not found.",
                 details={"error_code": "USER_INACTIVE"},
             )
 

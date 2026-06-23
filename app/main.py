@@ -10,6 +10,7 @@ from app.core.redis import redis_manager
 from app.modules.auth.router import router as auth_router
 from app.modules.currency.router import router as currency_router
 from app.modules.health.router import router as health_router
+from app.modules.users.router import router as users_router
 from app.tasks.broker import broker
 
 
@@ -89,4 +90,5 @@ register_exception_handlers(app)
 # Register api routers under configured prefix versioning
 app.include_router(health_router, prefix=settings.API_V1_STR)
 app.include_router(auth_router, prefix=settings.API_V1_STR)
+app.include_router(users_router, prefix=settings.API_V1_STR)
 app.include_router(currency_router, prefix=settings.API_V1_STR)
