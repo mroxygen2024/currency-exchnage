@@ -1,4 +1,3 @@
-
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
@@ -8,15 +7,11 @@ class UserProfileUpdate(BaseModel):
     Allows updating email, first name, and last name with validation.
     """
 
-    email: EmailStr | None = Field(
-        None, description="New email address for the user."
-    )
+    email: EmailStr | None = Field(None, description="New email address for the user.")
     first_name: str | None = Field(
         None, max_length=100, description="User's first name."
     )
-    last_name: str | None = Field(
-        None, max_length=100, description="User's last name."
-    )
+    last_name: str | None = Field(None, max_length=100, description="User's last name.")
 
 
 class UserPasswordChange(BaseModel):

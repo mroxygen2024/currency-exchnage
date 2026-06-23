@@ -1,4 +1,3 @@
-
 from fastapi import Depends
 
 from app.core.exceptions import UnauthorizedException

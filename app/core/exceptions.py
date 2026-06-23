@@ -70,9 +70,7 @@ class UnauthorizedException(AppException):
 class ForbiddenException(AppException):
     """Raised when access is forbidden for the current user."""
 
-    def __init__(
-        self, message: str = "Forbidden.", details: Any | None = None
-    ) -> None:
+    def __init__(self, message: str = "Forbidden.", details: Any | None = None) -> None:
         super().__init__(
             status_code=status.HTTP_403_FORBIDDEN,
             code="FORBIDDEN",
@@ -93,8 +91,6 @@ class DatabaseException(AppException):
             message=message,
             details=details,
         )
-
-
 
 
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:

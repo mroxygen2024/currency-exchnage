@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,8 +78,7 @@ async def get_currency_rate(
     if not rate:
         raise NotFoundException(
             message=(
-                f"Exchange rate for pair {base.upper()}/{target.upper()} "
-                "was not found."
+                f"Exchange rate for pair {base.upper()}/{target.upper()} was not found."
             )
         )
 
