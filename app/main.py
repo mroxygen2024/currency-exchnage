@@ -1,7 +1,8 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -11,6 +12,10 @@ from app.core.redis import redis_manager
 from app.modules.auth.router import router as auth_router
 from app.modules.currency.history_router import router as history_router
 from app.modules.currency.router import router as currency_router
+from app.modules.currency.websocket import (
+    periodic_rates_pusher,
+    ws_rates_endpoint,
+)
 from app.modules.favorites.router import router as favorites_router
 from app.modules.health.router import router as health_router
 from app.modules.users.router import router as users_router
@@ -49,7 +54,17 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.error("Failed to start Taskiq broker", error=str(exc))
 
+    # Start periodic rates pusher background task
+    rates_task = asyncio.create_task(periodic_rates_pusher())
+
     yield
+
+    # Cancel periodic rates pusher task on shutdown
+    rates_task.cancel()
+    try:
+        await rates_task
+    except asyncio.CancelledError:
+        pass
 
     # 4. Graceful Shutdown: disconnect cache and task brokers
     await redis_manager.close_pool()
@@ -73,6 +88,16 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+
+# ------------------------------------------------------------------------------
+# WebSocket Routes
+# ------------------------------------------------------------------------------
+@app.websocket("/ws/rates")
+async def websocket_rates(websocket: WebSocket) -> None:
+    """WebSocket endpoint for real-time exchange rate streaming."""
+    await ws_rates_endpoint(websocket)
+
 
 # ------------------------------------------------------------------------------
 # Middleware Configurations
