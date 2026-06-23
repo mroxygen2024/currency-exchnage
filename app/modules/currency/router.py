@@ -7,8 +7,8 @@ from app.core.dependencies import (
     get_current_user_id,
     get_optional_user_id,
 )
-from app.core.redis import get_redis
 from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.redis import get_redis
 from app.modules.currency import schemas, services
 from app.modules.currency.websocket import ws_manager
 
