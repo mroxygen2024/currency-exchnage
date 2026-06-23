@@ -2,7 +2,8 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 from taskiq import TaskiqDepends
 
-from app.core.dependencies import get_db, get_redis
+from app.core.database import get_db
+from app.core.redis import get_redis
 from app.core.logging import logger
 from app.modules.currency import services
 from app.tasks.broker import broker

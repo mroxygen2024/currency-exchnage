@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, s
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
 from app.core.dependencies import (
     get_current_user_id,
-    get_db,
     get_optional_user_id,
-    get_redis,
 )
+from app.core.redis import get_redis
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.modules.currency import schemas, services
 from app.modules.currency.websocket import ws_manager
