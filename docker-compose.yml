@@ -1,0 +1,192 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # PostgreSQL Database Service
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: currency_tracker_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-currency_tracker}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # Redis Caching Service
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: currency_tracker_redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # FastAPI Web Application Service
+  # ----------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: currency_tracker_web
+    restart: unless-stopped
+    command: /app/start.sh
+    environment:
+      ENV: development
+      DEBUG: "true"
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-currency_tracker}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RUN_MIGRATIONS: "true"  # Automatically run migrations on startup in dev
+      UVICORN_WORKERS: 2      # Lower worker count for dev environment
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - app_logs:/app/logs
+    networks:
+      - app_network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ----------------------------------------------------------------------------
+  # Celery Worker (Taskiq Worker)
+  # ----------------------------------------------------------------------------
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: currency_tracker_worker
+    restart: unless-stopped
+    command: /app/celery.sh
+    environment:
+      ENV: development
+      SECRET_KEY: ${SECRET_KEY}
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-currency_tracker}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RUN_MIGRATIONS: "false"  # Do not run migrations on worker startup
+    volumes:
+      - ./app:/app/app
+      - app_logs:/app/logs
+    networks:
+      - app_network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Verifies the process is running inside the container
+      test: ["CMD-SHELL", "pgrep -f 'taskiq worker' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ----------------------------------------------------------------------------
+  # Celery Beat (Taskiq Scheduler)
+  # ----------------------------------------------------------------------------
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: currency_tracker_beat
+    restart: unless-stopped
+    command: /app/beat.sh
+    environment:
+      ENV: development
+      SECRET_KEY: ${SECRET_KEY}
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-currency_tracker}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RUN_MIGRATIONS: "false"
+    volumes:
+      - ./app:/app/app
+      - app_logs:/app/logs
+    networks:
+      - app_network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ----------------------------------------------------------------------------
+  # Nginx Reverse Proxy (Development)
+  # ----------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: currency_tracker_proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - app_network
+    depends_on:
+      - web
+
+# ------------------------------------------------------------------------------
+# Persistent Network and Volume Configurations
+# ------------------------------------------------------------------------------
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_logs:
+    driver: local
+  nginx_logs:
+    driver: local

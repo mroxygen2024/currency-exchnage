@@ -27,6 +27,8 @@ redis>=5.0.7
 taskiq>=0.11.3
 taskiq-redis>=0.5.5
 taskiq-fastapi>=0.3.1
+taskiq-scheduler>=0.3.0
+
 
 # ------------------------------------------------------------------------------
 # Security, Authentication, & Utilities

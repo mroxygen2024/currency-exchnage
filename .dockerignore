@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local development / Docker
+.env
+.env.development
+.env.production
+docker-compose*.yml
+docker-compose*.yaml
+Dockerfile*
+docker/
+
+# Documentation and IDEs
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+README.md
