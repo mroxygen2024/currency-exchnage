@@ -168,3 +168,171 @@ async def test_logout_revocation(client: AsyncClient) -> None:
         "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
     )
     assert refresh_resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_auth_service_register_direct(db_session) -> None:
+    """Verify register_user works when called directly on AuthService."""
+    from app.modules.auth.schemas import UserCreate
+    from app.modules.auth.service import AuthService
+
+    auth_service = AuthService(db_session)
+    user_in = UserCreate(email="direct@example.com", password="password123")
+    user = await auth_service.register_user(user_in)
+    assert user.email == "direct@example.com"
+
+
+@pytest.mark.anyio
+async def test_auth_service_register_duplicate_email(db_session) -> None:
+    """Verify duplicate email throws BadRequestException in register_user."""
+    from app.core.exceptions import BadRequestException
+    from app.modules.auth.schemas import UserCreate
+    from app.modules.auth.service import AuthService
+
+    auth_service = AuthService(db_session)
+    user_in = UserCreate(email="dup_service@example.com", password="password123")
+    await auth_service.register_user(user_in)
+
+    with pytest.raises(BadRequestException) as excinfo:
+        await auth_service.register_user(user_in)
+    assert excinfo.value.message == "A user with this email address already exists."
+    assert excinfo.value.details == {"error_code": "EMAIL_ALREADY_EXISTS"}
+
+
+@pytest.mark.anyio
+async def test_auth_service_authenticate_failures(db_session) -> None:
+    """Verify authentication failures (non-existent email, wrong password,
+    deactivated/deleted).
+    """
+    from app.core.exceptions import UnauthorizedException
+    from app.modules.auth.schemas import UserCreate
+    from app.modules.auth.service import AuthService
+
+    auth_service = AuthService(db_session)
+
+    # 1. Non-existent email
+    with pytest.raises(UnauthorizedException) as excinfo:
+        await auth_service.authenticate_user(
+            email="nonexistent@example.com", password="password123"
+        )
+    assert excinfo.value.message == "Incorrect email or password."
+
+    # Register user
+    user_in = UserCreate(email="auth_fail@example.com", password="password123")
+    user = await auth_service.register_user(user_in)
+
+    # 2. Incorrect password
+    with pytest.raises(UnauthorizedException) as excinfo:
+        await auth_service.authenticate_user(
+            email="auth_fail@example.com", password="wrongpassword"
+        )
+    assert excinfo.value.message == "Incorrect email or password."
+
+    # 3. Deactivated user
+    user.is_active = False
+    await db_session.commit()
+    with pytest.raises(UnauthorizedException) as excinfo:
+        await auth_service.authenticate_user(
+            email="auth_fail@example.com", password="password123"
+        )
+    assert excinfo.value.message == "User account is deactivated or deleted."
+
+    # 4. Deleted user
+    user.is_active = True
+    user.is_deleted = True
+    await db_session.commit()
+    with pytest.raises(UnauthorizedException) as excinfo:
+        await auth_service.authenticate_user(
+            email="auth_fail@example.com", password="password123"
+        )
+    assert excinfo.value.message == "User account is deactivated or deleted."
+
+
+@pytest.mark.anyio
+async def test_auth_service_rotate_failures_and_success(db_session) -> None:
+    """Verify refresh token rotation success and failures (invalid, reused,
+    expired, inactive user).
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from app.core.exceptions import UnauthorizedException
+    from app.modules.auth.models import RefreshToken
+    from app.modules.auth.schemas import UserCreate
+    from app.modules.auth.service import AuthService
+
+    auth_service = AuthService(db_session)
+
+    # 1. Invalid refresh token
+    with pytest.raises(UnauthorizedException) as excinfo:
+        await auth_service.rotate_refresh_token("rt_invalid_token_123")
+    assert excinfo.value.message == "Invalid refresh token."
+
+    # Register user
+    user_in = UserCreate(email="rotate_fail@example.com", password="password123")
+    user = await auth_service.register_user(user_in)
+
+    # Generate token using service
+    access, refresh = await auth_service.create_session_tokens(user)
+
+    # 2. Success rotate path
+    new_access, new_refresh = await auth_service.rotate_refresh_token(refresh)
+    assert new_access is not None
+    assert new_refresh is not None
+    assert new_refresh != refresh
+
+    # 3. Reused token detection (we use refresh again)
+    with pytest.raises(UnauthorizedException) as excinfo:
+        await auth_service.rotate_refresh_token(refresh)
+    assert "Compromised" in excinfo.value.message
+
+    # 4. Expired token detection
+    expired_raw = "rt_expired_token_123"
+    token_hash = auth_service.token_repo.hash_token(expired_raw)
+    db_token = RefreshToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=datetime.now(UTC) - timedelta(days=1),
+    )
+    await auth_service.token_repo.create(db_token)
+    with pytest.raises(UnauthorizedException) as excinfo:
+        await auth_service.rotate_refresh_token(expired_raw)
+    assert "expired" in excinfo.value.message
+
+    # 5. Token for inactive user
+    inactive_raw = "rt_inactive_user_token"
+    inactive_hash = auth_service.token_repo.hash_token(inactive_raw)
+    db_token_inactive = RefreshToken(
+        user_id=user.id,
+        token_hash=inactive_hash,
+        expires_at=datetime.now(UTC) + timedelta(days=1),
+    )
+    await auth_service.token_repo.create(db_token_inactive)
+
+    # Deactivate user
+    user.is_active = False
+    await db_session.commit()
+
+    with pytest.raises(UnauthorizedException) as excinfo:
+        await auth_service.rotate_refresh_token(inactive_raw)
+    assert "inactive" in excinfo.value.message
+
+
+@pytest.mark.anyio
+async def test_auth_service_revoke_token(db_session) -> None:
+    """Verify revoking a refresh token modifies the database record."""
+    from app.modules.auth.schemas import UserCreate
+    from app.modules.auth.service import AuthService
+
+    auth_service = AuthService(db_session)
+    user_in = UserCreate(email="revoke_service@example.com", password="password123")
+    user = await auth_service.register_user(user_in)
+
+    access, refresh = await auth_service.create_session_tokens(user)
+
+    # Revoke it
+    await auth_service.revoke_refresh_token(refresh)
+
+    # Verify it is revoked in database
+    token_hash = auth_service.token_repo.hash_token(refresh)
+    db_token = await auth_service.token_repo.get_by_hash(token_hash)
+    assert db_token.revoked_at is not None

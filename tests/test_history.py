@@ -133,9 +133,9 @@ async def test_history_filtering_sorting_and_pagination(
     data = resp.json()
     assert data["total"] == 3
     assert len(data["items"]) == 3
-    assert all(
-        item["user_id"] == 1 for item in data["items"]
-    )  # Assuming User A id is 1
+    stmt = select(User).where(User.email == "usera@example.com")
+    user_a = (await db_session.execute(stmt)).scalar_one()
+    assert all(item["user_id"] == user_a.id for item in data["items"])
 
     # 4. Test Filtering by currency
     resp = await client.get("/api/v1/history?to_currency=GBP", headers=headers_a)

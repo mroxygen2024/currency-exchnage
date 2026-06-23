@@ -232,3 +232,56 @@ async def test_soft_delete_account(client: AsyncClient) -> None:
         "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
     )
     assert refresh_fail_resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_users_service_direct_operations(db_session) -> None:
+    """Verify UsersService direct operations for profile update, password change,
+    and soft delete.
+    """
+    from app.core.exceptions import BadRequestException
+    from app.core.security import hash_password
+    from app.modules.auth.models import User
+    from app.modules.users.schemas import UserPasswordChange, UserProfileUpdate
+    from app.modules.users.service import UsersService
+
+    service = UsersService(db_session)
+
+    # Setup users
+    hashed = hash_password("pwd_pass123")
+    user1 = User(
+        email="direct_user1@example.com",
+        hashed_password=hashed,
+        is_active=True,
+        role="user",
+    )
+    user2 = User(
+        email="direct_user2@example.com",
+        hashed_password=hashed,
+        is_active=True,
+        role="user",
+    )
+    db_session.add_all([user1, user2])
+    await db_session.flush()
+
+    # 1. Update profile with empty data
+    empty_update = UserProfileUpdate()
+    res_empty = await service.update_profile(user1, empty_update)
+    assert res_empty == user1
+
+    # 2. Update profile with email collision
+    dup_update = UserProfileUpdate(email="direct_user2@example.com")
+    with pytest.raises(BadRequestException) as excinfo:
+        await service.update_profile(user1, dup_update)
+    assert "already exists" in excinfo.value.message
+
+    # 3. Change password successfully
+    pwd_change = UserPasswordChange(
+        current_password="pwd_pass123", new_password="new_pass123"
+    )
+    updated_user = await service.change_password(user1, pwd_change)
+    assert updated_user.id == user1.id
+
+    # 4. Soft delete account successfully
+    deleted_user = await service.soft_delete_account(user2)
+    assert deleted_user.is_deleted is True
