@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     REDIS_PASSWORD: str = ""
     REDIS_MAX_CONNECTIONS: int = 50
+    CACHE_EXPIRE_SECONDS: int = 600
 
     # --------------------------------------------------------------------------
     # Computed Properties

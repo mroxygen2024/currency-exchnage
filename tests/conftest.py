@@ -66,8 +66,17 @@ async def mock_redis() -> AsyncMock:
         cache_store[key] = value
         return True
 
+    async def delete_val(*keys: str) -> int:
+        count = 0
+        for key in keys:
+            if key in cache_store:
+                del cache_store[key]
+                count += 1
+        return count
+
     redis.get.side_effect = get_val
     redis.setex.side_effect = setex_val
+    redis.delete.side_effect = delete_val
     return redis
 
 

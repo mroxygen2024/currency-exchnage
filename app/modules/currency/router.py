@@ -50,6 +50,19 @@ async def convert_currency(
     )
 
 
+@router.get("/analytics", response_model=schemas.CurrencyAnalyticsOut)
+async def get_currency_analytics(
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+    _current_user_id: str = Depends(get_current_user_id),
+) -> schemas.CurrencyAnalyticsOut:
+    """Retrieve system-wide currency conversion statistics.
+
+    Validates authenticated user, then queries cached analytics or fallback database.
+    """
+    return await services.get_analytics(db, redis)
+
+
 @router.get("/rates", response_model=list[schemas.CurrencyRateOut])
 async def list_all_rates(
     db: AsyncSession = Depends(get_db),

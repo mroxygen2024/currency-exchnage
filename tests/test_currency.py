@@ -459,9 +459,9 @@ async def test_currency_service_history_operations(db_session: AsyncSession) -> 
 
     # 7. Delete history Forbidden (not owner)
     with pytest.raises(ForbiddenException):
-        await delete_history(db_session, conv1.id, other_user)
+        await delete_history(db_session, mock_redis, conv1.id, other_user)
 
     # 8. Delete history success
-    await delete_history(db_session, conv1.id, user)
+    await delete_history(db_session, mock_redis, conv1.id, user)
     with pytest.raises(NotFoundException):
         await get_history_by_id(db_session, conv1.id, user)

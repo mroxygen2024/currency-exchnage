@@ -32,9 +32,13 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     if settings.ENV != "testing":
         redis_healthy = await redis_manager.ping()
         if not redis_healthy:
-            logger.critical("Could not connect to Redis cache on startup.")
-            raise RuntimeError("Redis connection failed.")
-        logger.info("Redis cache client connected successfully.")
+            logger.critical(
+                "Could not connect to Redis cache on startup. "
+                "The application will start, but caching features "
+                "will be disabled/unhealthy with database fallbacks."
+            )
+        else:
+            logger.info("Redis cache client connected successfully.")
     else:
         logger.info("Skipping Redis connection verification in testing mode.")
 

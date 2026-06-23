@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import datetime
 
@@ -5,6 +6,7 @@ from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -63,8 +65,10 @@ async def get_rate(
     if db_rate:
         # Populate Cache asynchronously
         try:
-            # Cache for 1 hour (3600 seconds)
-            await redis.setex(cache_key, 3600, str(float(db_rate.rate)))
+            # Cache for 10 minutes (600 seconds)
+            await redis.setex(
+                cache_key, settings.CACHE_EXPIRE_SECONDS, str(float(db_rate.rate))
+            )
         except Exception as exc:
             logger.error("Failed to update Redis cache", error=str(exc))
 
@@ -106,7 +110,7 @@ async def update_or_create_rate(
 
     # Refresh Redis Cache
     try:
-        await redis.setex(cache_key, 3600, str(rate))
+        await redis.setex(cache_key, settings.CACHE_EXPIRE_SECONDS, str(rate))
     except Exception as exc:
         logger.error("Failed to refresh Redis cache on update", error=str(exc))
 
@@ -216,6 +220,15 @@ async def convert_currency(
     )
     db.add(conversion)
     await db.flush()
+
+    # Invalidate global analytics cache
+    try:
+        await redis.delete("analytics:global")
+        logger.info("Invalidated global analytics cache due to new conversion")
+    except Exception as exc:
+        logger.error(
+            "Failed to invalidate global analytics cache on conversion", error=str(exc)
+        )
 
     logger.info(
         "Successfully performed currency conversion and saved to history",
@@ -346,6 +359,7 @@ async def get_history_by_id(
 
 async def delete_history(
     db: AsyncSession,
+    redis: Redis,
     conversion_id: int,
     user: User,
 ) -> None:
@@ -357,8 +371,106 @@ async def delete_history(
     conversion = await get_history_by_id(db, conversion_id, user)
     await db.delete(conversion)
     await db.flush()
+
+    # Invalidate global analytics cache
+    try:
+        await redis.delete("analytics:global")
+        logger.info("Invalidated global analytics cache due to conversion deletion")
+    except Exception as exc:
+        logger.error(
+            "Failed to invalidate global analytics cache on deletion", error=str(exc)
+        )
+
     logger.info(
         "Successfully deleted conversion history record",
         id=conversion_id,
         user_id=user.id,
     )
+
+
+async def get_analytics(db: AsyncSession, redis: Redis) -> dict:
+    """Retrieve system-wide currency conversion analytics, leveraging Redis caching.
+
+    Checks the cache first under 'analytics:global'. On miss or Redis failure,
+    it queries PostgreSQL to calculate total conversions, popular pairs, and
+    total volume, populates the cache, and returns the analytics data.
+    """
+    cache_key = "analytics:global"
+
+    # 1. Check Redis cache
+    try:
+        cached_data = await redis.get(cache_key)
+        if cached_data is not None:
+            logger.info("Cache hit for currency analytics")
+            return json.loads(cached_data)
+    except Exception as exc:
+        logger.error("Failed to query Redis cache for analytics", error=str(exc))
+
+    logger.info("Cache miss for currency analytics. Calculating from DB...")
+
+    # 2. Cache miss - Query PostgreSQL
+    # Query A: Total conversions count
+    count_stmt = select(func.count(CurrencyConversion.id))
+    count_res = await db.execute(count_stmt)
+    total_conversions = count_res.scalar() or 0
+
+    # Query B: Popular pairs (grouped by from/to, sorted by count desc, limit 5)
+    pairs_stmt = (
+        select(
+            CurrencyConversion.from_currency,
+            CurrencyConversion.to_currency,
+            func.count(CurrencyConversion.id).label("count"),
+            func.sum(CurrencyConversion.amount).label("total_amount"),
+        )
+        .group_by(CurrencyConversion.from_currency, CurrencyConversion.to_currency)
+        .order_by(func.count(CurrencyConversion.id).desc())
+        .limit(5)
+    )
+    pairs_res = await db.execute(pairs_stmt)
+    popular_pairs_rows = pairs_res.all()
+
+    popular_pairs = [
+        {
+            "from_currency": row.from_currency,
+            "to_currency": row.to_currency,
+            "count": row.count,
+            "total_amount": float(row.total_amount)
+            if row.total_amount is not None
+            else 0.0,
+        }
+        for row in popular_pairs_rows
+    ]
+
+    # Query C: Total volume by currency
+    volume_stmt = select(
+        CurrencyConversion.from_currency,
+        func.sum(CurrencyConversion.amount).label("total_amount"),
+    ).group_by(CurrencyConversion.from_currency)
+    volume_res = await db.execute(volume_stmt)
+    volume_rows = volume_res.all()
+
+    total_volume_by_currency = {
+        row.from_currency: float(row.total_amount)
+        if row.total_amount is not None
+        else 0.0
+        for row in volume_rows
+    }
+
+    analytics_data = {
+        "total_conversions": total_conversions,
+        "popular_pairs": popular_pairs,
+        "total_volume_by_currency": total_volume_by_currency,
+    }
+
+    # 3. Populate Redis cache asynchronously
+    try:
+        await redis.setex(
+            cache_key,
+            settings.CACHE_EXPIRE_SECONDS,
+            json.dumps(analytics_data),
+        )
+        logger.info("Successfully populated Redis cache for analytics")
+    except Exception as exc:
+        logger.error("Failed to update Redis cache for analytics", error=str(exc))
+
+    return analytics_data

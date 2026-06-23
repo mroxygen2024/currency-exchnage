@@ -1,9 +1,11 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, status
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.redis import get_redis
 from app.modules.auth.dependencies import get_current_active_user
 from app.modules.auth.models import User
 from app.modules.currency import schemas, services
@@ -85,6 +87,7 @@ async def delete_conversion_history_record(
     id: int,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
 ) -> None:
     """Delete a specific conversion history record.
 
@@ -93,6 +96,7 @@ async def delete_conversion_history_record(
     """
     await services.delete_history(
         db=db,
+        redis=redis,
         conversion_id=id,
         user=current_user,
     )

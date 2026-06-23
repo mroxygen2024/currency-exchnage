@@ -65,3 +65,24 @@ class PaginatedHistory(BaseModel):
     page: int = Field(..., description="Current page number")
     limit: int = Field(..., description="Items per page")
     pages: int = Field(..., description="Total number of pages")
+
+
+class AnalyticsPair(BaseModel):
+    from_currency: str = Field(..., description="Source currency code")
+    to_currency: str = Field(..., description="Target currency code")
+    count: int = Field(..., description="Number of conversions performed for this pair")
+    total_amount: float = Field(
+        ..., description="Total volume of amount converted in this pair"
+    )
+
+
+class CurrencyAnalyticsOut(BaseModel):
+    total_conversions: int = Field(
+        ..., description="Total conversions count in the system"
+    )
+    popular_pairs: list[AnalyticsPair] = Field(
+        ..., description="Top 5 most converted currency pairs"
+    )
+    total_volume_by_currency: dict[str, float] = Field(
+        ..., description="Total volume converted from each currency"
+    )
