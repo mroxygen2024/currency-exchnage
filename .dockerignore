@@ -24,7 +24,7 @@ htmlcov/
 docker-compose*.yml
 docker-compose*.yaml
 Dockerfile*
-docker/
+
 
 # Documentation and IDEs
 .idea/
