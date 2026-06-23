@@ -20,8 +20,17 @@ class UserOut(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    refresh_token: str = Field(..., description="Secure refresh token for token rotation.")
 
 
 class TokenPayload(BaseModel):
     sub: Optional[str] = None
     exp: Optional[int] = None
+
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str = Field(..., description="Valid refresh token to obtain a new access/refresh token pair.")
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str = Field(..., description="The refresh token to revoke upon logout.")
