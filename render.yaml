@@ -1,0 +1,74 @@
+version: "1"
+
+services:
+  # Managed Redis Instance
+  - type: redis
+    name: currency-redis
+    plan: free
+    ipAllowList: [] # Restrict access to internal connections only for security
+
+  # Web Service
+  - type: web
+    name: currency-exchange-api
+    plan: free
+    runtime: docker
+    envVars:
+      # General Configuration
+      - key: ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: PROJECT_NAME
+        value: "Currency Tracker Platform"
+      - key: RUN_MIGRATIONS
+        value: "true"
+      - key: UVICORN_WORKERS
+        value: "4"
+
+      # Security Configuration
+      - key: SECRET_KEY
+        generateValue: true
+
+      # PostgreSQL Database Connections (Linked from managed database)
+      - key: POSTGRES_SERVER
+        fromDatabase:
+          name: currency-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: currency-db
+          property: port
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: currency-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: currency-db
+          property: password
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: currency-db
+          property: database
+
+      # Redis Cache Connections (Linked from managed Redis service)
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: currency-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: currency-redis
+          property: port
+      - key: REDIS_PASSWORD
+        fromService:
+          type: redis
+          name: currency-redis
+          property: password
+
+databases:
+  # Managed PostgreSQL Database
+  - name: currency-db
+    plan: free
