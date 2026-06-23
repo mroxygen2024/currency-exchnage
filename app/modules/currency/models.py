@@ -42,3 +42,21 @@ class CurrencyConversion(Base):
         default=lambda: datetime.now(UTC),
         nullable=False,
     )
+
+
+class CurrencyRateHistory(Base):
+    """Database model storing historical currency rate changes."""
+
+    __tablename__ = "currency_rate_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    base_currency: Mapped[str] = mapped_column(String(3), index=True, nullable=False)
+    target_currency: Mapped[str] = mapped_column(String(3), index=True, nullable=False)
+    rate: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+

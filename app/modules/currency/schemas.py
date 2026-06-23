@@ -86,3 +86,50 @@ class CurrencyAnalyticsOut(BaseModel):
     total_volume_by_currency: dict[str, float] = Field(
         ..., description="Total volume converted from each currency"
     )
+
+
+class TrendItem(BaseModel):
+    rate: float = Field(
+        ..., description="Exchange rate at the specific timestamp"
+    )
+    timestamp: datetime = Field(
+        ..., description="Timestamp when the rate was recorded"
+    )
+
+
+class TrendStats(BaseModel):
+    average_rate: float = Field(
+        ..., description="Average exchange rate over the period"
+    )
+    percentage_change: float = Field(
+        ..., description="Percentage change in rate over the period"
+    )
+    min_rate: float = Field(
+        ..., description="Minimum exchange rate over the period"
+    )
+    max_rate: float = Field(
+        ..., description="Maximum exchange rate over the period"
+    )
+
+
+class CurrencyTrendsOut(BaseModel):
+    base_currency: str = Field(
+        ..., min_length=3, max_length=3, description="Base currency code"
+    )
+    target_currency: str = Field(
+        ..., min_length=3, max_length=3, description="Target currency code"
+    )
+    trends: list[TrendItem] = Field(
+        ..., description="Paginated historical rate trend points"
+    )
+    total: int = Field(
+        ..., description="Total rate data points in selected date range"
+    )
+    page: int = Field(..., description="Current page number")
+    limit: int = Field(..., description="Items per page")
+    pages: int = Field(..., description="Total number of pages")
+    stats: TrendStats = Field(
+        ..., description="Statistical summary for selected period"
+    )
+
+

@@ -14,7 +14,11 @@ from app.core.exceptions import (
 )
 from app.core.logging import logger
 from app.modules.auth.models import User
-from app.modules.currency.models import CurrencyConversion, CurrencyRate
+from app.modules.currency.models import (
+    CurrencyConversion,
+    CurrencyRate,
+    CurrencyRateHistory,
+)
 from app.modules.currency.websocket import ws_manager
 
 
@@ -106,13 +110,30 @@ async def update_or_create_rate(
         db.add(db_rate)
         logger.info("Created new currency pair rate in DB", pair=pair, rate=rate)
 
+    # Record to historical rate log
+    db_history = CurrencyRateHistory(
+        base_currency=base_upper,
+        target_currency=target_upper,
+        rate=rate,
+    )
+    db.add(db_history)
+
     await db.flush()
 
-    # Refresh Redis Cache
+    # Refresh Redis Cache and invalidate trends
     try:
         await redis.setex(cache_key, settings.CACHE_EXPIRE_SECONDS, str(rate))
+        # Invalidate trend caches in Redis for this pair
+        pattern = f"analytics:trends:{base_upper}:{target_upper}:*"
+        keys = await redis.keys(pattern)
+        if keys:
+            await redis.delete(*keys)
+            logger.info("Invalidated trends cache", keys_count=len(keys), pair=pair)
     except Exception as exc:
-        logger.error("Failed to refresh Redis cache on update", error=str(exc))
+        logger.error(
+            "Failed to refresh Redis cache or invalidate trends cache on update",
+            error=str(exc),
+        )
 
     # Broadcast update to connected WebSocket clients
     payload = {
@@ -474,3 +495,168 @@ async def get_analytics(db: AsyncSession, redis: Redis) -> dict:
         logger.error("Failed to update Redis cache for analytics", error=str(exc))
 
     return analytics_data
+
+
+async def get_rate_trends(
+    db: AsyncSession,
+    redis: Redis,
+    base: str,
+    target: str,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    page: int = 1,
+    limit: int = 30,
+) -> dict:
+    """Retrieve historical exchange rate trends, statistics, and percentage change.
+
+    Leverages Redis caching. If cache hits, returns the cached trend payload.
+    Otherwise queries the PostgreSQL database, computes statistics, paginates
+    the trends, and caches the result.
+    """
+    base_upper = base.upper()
+    target_upper = target.upper()
+
+    valid_base = re.match(r"^[A-Z]{3}$", base_upper)
+    valid_target = re.match(r"^[A-Z]{3}$", target_upper)
+    if not valid_base or not valid_target:
+        raise BadRequestException(
+            message="Currency codes must be exactly 3-character alphabetic codes."
+        )
+
+    # 1. Check Redis cache first
+    start_str = start_date.isoformat() if start_date else "none"
+    end_str = end_date.isoformat() if end_date else "none"
+    cache_key = (
+        f"analytics:trends:{base_upper}:{target_upper}:"
+        f"{start_str}:{end_str}:{page}:{limit}"
+    )
+
+    try:
+        cached_data = await redis.get(cache_key)
+        if cached_data is not None:
+            logger.info("Cache hit for currency rate trends", key=cache_key)
+            return json.loads(cached_data)
+    except Exception as exc:
+        logger.error("Failed to query Redis cache for rate trends", error=str(exc))
+
+    logger.info("Cache miss for rate trends. Querying database...", key=cache_key)
+
+    # 2. Database queries
+    filters = [
+        CurrencyRateHistory.base_currency == base_upper,
+        CurrencyRateHistory.target_currency == target_upper,
+    ]
+    if start_date:
+        filters.append(CurrencyRateHistory.timestamp >= start_date)
+    if end_date:
+        filters.append(CurrencyRateHistory.timestamp <= end_date)
+
+    # Get statistics: Average, Min, Max, Count
+    stats_stmt = select(
+        func.avg(CurrencyRateHistory.rate).label("avg_rate"),
+        func.min(CurrencyRateHistory.rate).label("min_rate"),
+        func.max(CurrencyRateHistory.rate).label("max_rate"),
+        func.count(CurrencyRateHistory.id).label("total_count")
+    ).where(*filters)
+
+    stats_res = await db.execute(stats_stmt)
+    avg_rate, min_rate, max_rate, total = stats_res.one()
+    total = total or 0
+
+    if total == 0:
+        empty_res = {
+            "base_currency": base_upper,
+            "target_currency": target_upper,
+            "trends": [],
+            "total": 0,
+            "page": page,
+            "limit": limit,
+            "pages": 0,
+            "stats": {
+                "average_rate": 0.0,
+                "percentage_change": 0.0,
+                "min_rate": 0.0,
+                "max_rate": 0.0,
+            }
+        }
+        return empty_res
+
+    # Query oldest rate in the period
+    oldest_stmt = (
+        select(CurrencyRateHistory.rate)
+        .where(*filters)
+        .order_by(CurrencyRateHistory.timestamp.asc())
+        .limit(1)
+    )
+    oldest_rate = (await db.execute(oldest_stmt)).scalar_one_or_none()
+
+    # Query latest rate in the period
+    latest_stmt = (
+        select(CurrencyRateHistory.rate)
+        .where(*filters)
+        .order_by(CurrencyRateHistory.timestamp.desc())
+        .limit(1)
+    )
+    latest_rate = (await db.execute(latest_stmt)).scalar_one_or_none()
+
+    # Calculate percentage change
+    percentage_change = 0.0
+    if (
+        oldest_rate is not None
+        and latest_rate is not None
+        and float(oldest_rate) > 0
+    ):
+        diff = float(latest_rate) - float(oldest_rate)
+        percentage_change = (diff / float(oldest_rate)) * 100.0
+
+    # Paginate trends list
+    offset = (page - 1) * limit
+    trends_stmt = (
+        select(CurrencyRateHistory)
+        .where(*filters)
+        .order_by(CurrencyRateHistory.timestamp.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    trends_res = await db.execute(trends_stmt)
+    items = trends_res.scalars().all()
+
+    trends = [
+        {
+            "rate": float(item.rate),
+            "timestamp": item.timestamp.isoformat()
+        }
+        for item in items
+    ]
+
+    pages = (total + limit - 1) // limit if total > 0 else 0
+
+    result_data = {
+        "base_currency": base_upper,
+        "target_currency": target_upper,
+        "trends": trends,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": pages,
+        "stats": {
+            "average_rate": float(avg_rate) if avg_rate is not None else 0.0,
+            "percentage_change": float(percentage_change),
+            "min_rate": float(min_rate) if min_rate is not None else 0.0,
+            "max_rate": float(max_rate) if max_rate is not None else 0.0,
+        }
+    }
+
+    # 3. Cache the result in Redis
+    try:
+        await redis.setex(
+            cache_key,
+            settings.CACHE_EXPIRE_SECONDS,
+            json.dumps(result_data)
+        )
+        logger.info("Successfully populated Redis cache for rate trends", key=cache_key)
+    except Exception as exc:
+        logger.error("Failed to populate Redis cache for rate trends", error=str(exc))
+
+    return result_data
+
