@@ -1,10 +1,12 @@
 from typing import List, Optional
+import re
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestException, NotFoundException
 from app.core.logging import logger
-from app.modules.currency.models import CurrencyRate
+from app.modules.currency.models import CurrencyRate, CurrencyConversion
 from app.modules.currency.websocket import ws_manager
 
 
@@ -120,3 +122,93 @@ async def list_rates(db: AsyncSession) -> List[CurrencyRate]:
     stmt = select(CurrencyRate).order_by(CurrencyRate.base_currency)
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def convert_currency(
+    db: AsyncSession, redis: Redis, from_currency: str, to_currency: str, amount: float
+) -> CurrencyConversion:
+    """Validate currencies and amount, calculate conversion, and save details to history.
+
+    Supports:
+    - Same currency (rate = 1.0)
+    - Direct pair (from_currency -> to_currency)
+    - Inverse pair (to_currency -> from_currency)
+    - Cross-rate via a common base (e.g., USD or EUR)
+    """
+    from_upper = from_currency.upper()
+    to_upper = to_currency.upper()
+
+    # 1. Validation
+    if not re.match(r"^[A-Z]{3}$", from_upper) or not re.match(r"^[A-Z]{3}$", to_upper):
+        raise BadRequestException(
+            message="Currency codes must be exactly 3-character alphabetic codes."
+        )
+
+    if amount <= 0:
+        raise BadRequestException(
+            message="Conversion amount must be greater than zero."
+        )
+
+    # 2. Get Conversion Rate
+    if from_upper == to_upper:
+        rate = 1.0
+    else:
+        # Check direct rate
+        direct_rate = await get_rate(db, redis, from_upper, to_upper)
+        if direct_rate:
+            rate = float(direct_rate.rate)
+        else:
+            # Check inverse rate
+            inverse_rate = await get_rate(db, redis, to_upper, from_upper)
+            if inverse_rate and float(inverse_rate.rate) > 0:
+                rate = 1.0 / float(inverse_rate.rate)
+            else:
+                # Try cross-rates via USD or EUR
+                rate = None
+                for base in ["USD", "EUR"]:
+                    rate_base_to_from = await get_rate(db, redis, base, from_upper)
+                    rate_base_to_to = await get_rate(db, redis, base, to_upper)
+                    if rate_base_to_from and rate_base_to_to:
+                        r1 = float(rate_base_to_from.rate)
+                        r2 = float(rate_base_to_to.rate)
+                        if r1 > 0:
+                            rate = r2 / r1
+                            break
+                    # Also try from -> base, base -> to
+                    rate_from_to_base = await get_rate(db, redis, from_upper, base)
+                    if rate_from_to_base and rate_base_to_to:
+                        r1 = float(rate_from_to_base.rate)
+                        r2 = float(rate_base_to_to.rate)
+                        rate = r1 * r2
+                        break
+
+                if rate is None:
+                    raise NotFoundException(
+                        message=f"Exchange rate for pair {from_upper}/{to_upper} was not found."
+                    )
+
+    # 3. Calculate conversion
+    result = amount * rate
+
+    # 4. Save conversion history
+    conversion = CurrencyConversion(
+        from_currency=from_upper,
+        to_currency=to_upper,
+        amount=amount,
+        rate=rate,
+        result=result,
+    )
+    db.add(conversion)
+    await db.flush()
+
+    logger.info(
+        "Successfully performed currency conversion and saved to history",
+        from_currency=from_upper,
+        to_currency=to_upper,
+        amount=amount,
+        rate=rate,
+        result=result,
+    )
+
+    return conversion
+

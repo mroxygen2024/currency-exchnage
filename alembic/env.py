@@ -13,7 +13,7 @@ from app.core.database import Base
 
 # Import all models to ensure they are registered on Base.metadata
 from app.modules.auth.models import User
-from app.modules.currency.models import CurrencyRate
+from app.modules.currency.models import CurrencyRate, CurrencyConversion
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

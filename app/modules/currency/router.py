@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +9,42 @@ from app.modules.currency import schemas, services
 from app.modules.currency.websocket import ws_manager
 
 router = APIRouter(prefix="/currencies", tags=["Currency Exchange"])
+
+
+@router.get("/convert", response_model=schemas.CurrencyConversionOut)
+async def convert_currency(
+    from_currency: str = Query(
+        ...,
+        alias="from",
+        min_length=3,
+        max_length=3,
+        pattern=r"^[a-zA-Z]{3}$",
+        description="Source 3-letter currency code (e.g. USD)"
+    ),
+    to_currency: str = Query(
+        ...,
+        alias="to",
+        min_length=3,
+        max_length=3,
+        pattern=r"^[a-zA-Z]{3}$",
+        description="Target 3-letter currency code (e.g. EUR)"
+    ),
+    amount: float = Query(
+        ...,
+        gt=0,
+        description="Amount to convert"
+    ),
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> schemas.CurrencyConversionOut:
+    """Perform currency conversion and record the transaction in the history log."""
+    return await services.convert_currency(
+        db=db,
+        redis=redis,
+        from_currency=from_currency,
+        to_currency=to_currency,
+        amount=amount,
+    )
 
 
 @router.get("/rates", response_model=List[schemas.CurrencyRateOut])

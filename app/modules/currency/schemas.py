@@ -21,3 +21,16 @@ class CurrencyRateOut(CurrencyRateBase):
 
     id: int
     last_updated: datetime
+
+
+class CurrencyConversionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    from_currency: str = Field(..., min_length=3, max_length=3, description="Source 3-letter currency code")
+    to_currency: str = Field(..., min_length=3, max_length=3, description="Target 3-letter currency code")
+    amount: float = Field(..., gt=0, description="Amount to convert")
+    rate: float = Field(..., gt=0, description="Exchange rate used for conversion")
+    result: float = Field(..., description="Converted amount")
+    converted_at: datetime = Field(..., description="Timestamp when conversion occurred")
+
