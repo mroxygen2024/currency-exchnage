@@ -1,11 +1,12 @@
 import taskiq_redis
-from taskiq import AsyncBroker, InMemoryBroker, TaskiqScheduler
+from taskiq import InMemoryBroker, TaskiqScheduler
 from taskiq.schedule_sources import LabelScheduleSource
 
 from app.core.config import settings
 
 # Define the broker using redis list queues.
-# If in testing mode, we can use an InMemoryBroker to avoid requiring a running Redis instance.
+# If in testing mode, we can use an InMemoryBroker to avoid requiring a
+# running Redis instance.
 if settings.ENV == "testing":
     broker = InMemoryBroker()
 else:
@@ -23,4 +24,3 @@ scheduler = TaskiqScheduler(
 # Register the FastAPI application target to allow tasks to resolve
 # FastAPI dependencies (like Database sessions and Redis clients) directly.
 # This requires running: taskiq worker app.tasks.broker:broker --fs-discover
-

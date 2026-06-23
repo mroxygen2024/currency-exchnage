@@ -3,11 +3,13 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.currency.models import CurrencyRate, CurrencyConversion
+from app.modules.currency.models import CurrencyConversion, CurrencyRate
 
 
 @pytest.mark.anyio
-async def test_convert_same_currency(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_convert_same_currency(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Verify that converting to the same currency yields a 1.0 rate and records it."""
     response = await client.get("/api/v1/currencies/convert?from=USD&to=USD&amount=100")
     assert response.status_code == 200
@@ -30,7 +32,9 @@ async def test_convert_same_currency(client: AsyncClient, db_session: AsyncSessi
 
 
 @pytest.mark.anyio
-async def test_convert_direct_rate(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_convert_direct_rate(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Verify that a direct rate lookup is used for conversion and recorded."""
     # Seed direct rate
     rate = CurrencyRate(base_currency="USD", target_currency="EUR", rate=0.92)
@@ -58,7 +62,9 @@ async def test_convert_direct_rate(client: AsyncClient, db_session: AsyncSession
 
 
 @pytest.mark.anyio
-async def test_convert_inverse_rate(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_convert_inverse_rate(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Verify that the inverse rate is calculated and used if direct rate is missing."""
     # Seed USD to EUR rate (0.8)
     rate = CurrencyRate(base_currency="USD", target_currency="EUR", rate=0.8)
@@ -84,7 +90,9 @@ async def test_convert_inverse_rate(client: AsyncClient, db_session: AsyncSessio
 
 
 @pytest.mark.anyio
-async def test_convert_cross_rate(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_convert_cross_rate(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Verify cross-rate calculation via common base currencies."""
     # Seed USD -> EUR (0.9), USD -> ETB (110.0)
     rate1 = CurrencyRate(base_currency="USD", target_currency="EUR", rate=0.9)

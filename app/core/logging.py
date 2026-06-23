@@ -1,7 +1,9 @@
 import logging
 import sys
-from typing import Any, List
+from typing import Any
+
 import structlog
+
 from app.core.config import settings
 
 
@@ -14,7 +16,7 @@ def setup_logging() -> None:
     log_level = logging.DEBUG if settings.DEBUG else logging.INFO
 
     # Shared processors for both standard and structured logging pipelines
-    processors: List[Any] = [
+    processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),

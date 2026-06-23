@@ -1,4 +1,4 @@
-from typing import List
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +17,7 @@ def get_users_service(db: AsyncSession = Depends(get_db)) -> UsersService:
     return UsersService(db)
 
 
-def require_role(allowed_roles: List[str]):
+def require_role(allowed_roles: list[str]):
     """Role-based access control (RBAC) dependency builder.
 
     Verifies that the current user has one of the specified roles.

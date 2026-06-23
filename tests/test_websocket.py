@@ -1,4 +1,5 @@
 import asyncio
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -27,9 +28,7 @@ def test_websocket_connection_and_broadcast() -> None:
             }
 
             # Run the asynchronous broadcast function inside a fresh event loop
-            asyncio.run(
-                ws_manager.broadcast_to_channel("USDEUR", rate_payload)
-            )
+            asyncio.run(ws_manager.broadcast_to_channel("USDEUR", rate_payload))
 
             # Assert that client receives the broadcast rate update message
             received_broadcast = websocket.receive_json()

@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,8 +17,8 @@ class CurrencyRate(Base):
     rate: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
     last_updated: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 
@@ -29,7 +29,7 @@ class CurrencyConversion(Base):
     __tablename__ = "currency_conversions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[Optional[int]] = mapped_column(
+    user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     from_currency: Mapped[str] = mapped_column(String(3), index=True, nullable=False)
@@ -39,7 +39,6 @@ class CurrencyConversion(Base):
     result: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
     converted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
-

@@ -1,6 +1,6 @@
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -83,7 +83,7 @@ class AuthService:
 
         return user
 
-    async def create_session_tokens(self, user: User) -> Tuple[str, str]:
+    async def create_session_tokens(self, user: User) -> tuple[str, str]:
         """Generate a new access token and a refresh token for a user.
 
         The access token is a JWT. The refresh token is a cryptographically
@@ -108,7 +108,9 @@ class AuthService:
         token_hash = self.token_repo.hash_token(raw_refresh_token)
 
         # 3. Save refresh token hash to database
-        expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        expires_at = datetime.now(UTC) + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
         refresh_token_db = RefreshToken(
             user_id=user.id,
             token_hash=token_hash,
@@ -118,7 +120,7 @@ class AuthService:
 
         return access_token, raw_refresh_token
 
-    async def rotate_refresh_token(self, refresh_token: str) -> Tuple[str, str]:
+    async def rotate_refresh_token(self, refresh_token: str) -> tuple[str, str]:
         """Perform Refresh Token Rotation (RTR).
 
         Validates the current refresh token, invalidates it, and generates
@@ -155,7 +157,7 @@ class AuthService:
             )
 
         # Expiration Check
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expires_at = db_token.expires_at
         now_compare = now.replace(tzinfo=None) if expires_at.tzinfo is None else now
 
@@ -191,4 +193,4 @@ class AuthService:
         token_hash = self.token_repo.hash_token(refresh_token)
         db_token = await self.token_repo.get_by_hash(token_hash)
         if db_token and db_token.revoked_at is None:
-            await self.token_repo.revoke_by_hash(token_hash, datetime.now(timezone.utc))
+            await self.token_repo.revoke_by_hash(token_hash, datetime.now(UTC))

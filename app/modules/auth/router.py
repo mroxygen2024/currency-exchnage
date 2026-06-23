@@ -1,4 +1,5 @@
 from typing import Any
+
 from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -16,9 +17,7 @@ from app.modules.auth.service import AuthService
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post(
-    "/register", response_model=UserOut, status_code=status.HTTP_201_CREATED
-)
+@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(
     user_in: UserCreate,
     auth_service: AuthService = Depends(get_auth_service),

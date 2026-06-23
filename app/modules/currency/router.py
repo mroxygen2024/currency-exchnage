@@ -1,9 +1,14 @@
-from typing import List, Optional
+
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user_id, get_db, get_redis, get_optional_user_id
+from app.core.dependencies import (
+    get_current_user_id,
+    get_db,
+    get_optional_user_id,
+    get_redis,
+)
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.modules.currency import schemas, services
 from app.modules.currency.websocket import ws_manager
@@ -19,7 +24,7 @@ async def convert_currency(
         min_length=3,
         max_length=3,
         pattern=r"^[a-zA-Z]{3}$",
-        description="Source 3-letter currency code (e.g. USD)"
+        description="Source 3-letter currency code (e.g. USD)",
     ),
     to_currency: str = Query(
         ...,
@@ -27,16 +32,12 @@ async def convert_currency(
         min_length=3,
         max_length=3,
         pattern=r"^[a-zA-Z]{3}$",
-        description="Target 3-letter currency code (e.g. EUR)"
+        description="Target 3-letter currency code (e.g. EUR)",
     ),
-    amount: float = Query(
-        ...,
-        gt=0,
-        description="Amount to convert"
-    ),
+    amount: float = Query(..., gt=0, description="Amount to convert"),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
-    current_user_id: Optional[str] = Depends(get_optional_user_id),
+    current_user_id: str | None = Depends(get_optional_user_id),
 ) -> schemas.CurrencyConversionOut:
     """Perform currency conversion and record the transaction in the history log."""
     user_id = int(current_user_id) if current_user_id else None
@@ -50,8 +51,10 @@ async def convert_currency(
     )
 
 
-@router.get("/rates", response_model=List[schemas.CurrencyRateOut])
-async def list_all_rates(db: AsyncSession = Depends(get_db)) -> List[schemas.CurrencyRateOut]:
+@router.get("/rates", response_model=list[schemas.CurrencyRateOut])
+async def list_all_rates(
+    db: AsyncSession = Depends(get_db),
+) -> list[schemas.CurrencyRateOut]:
     """Retrieve all exchange rates stored in the database."""
     return await services.list_rates(db)
 
@@ -75,7 +78,10 @@ async def get_currency_rate(
     rate = await services.get_rate(db, redis, base, target)
     if not rate:
         raise NotFoundException(
-            message=f"Exchange rate for pair {base.upper()}/{target.upper()} was not found."
+            message=(
+                f"Exchange rate for pair {base.upper()}/{target.upper()} "
+                "was not found."
+            )
         )
 
     return rate
@@ -86,7 +92,7 @@ async def update_exchange_rate(
     rate_in: schemas.CurrencyRateCreate,
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
-    current_user_id: str = Depends(get_current_user_id),
+    _current_user_id: str = Depends(get_current_user_id),
 ) -> schemas.CurrencyRateOut:
     """Create or update an exchange rate.
 

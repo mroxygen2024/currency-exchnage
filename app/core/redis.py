@@ -1,4 +1,4 @@
-from typing import Optional
+
 from redis.asyncio import ConnectionPool, Redis
 
 from app.core.config import settings
@@ -9,8 +9,8 @@ class RedisManager:
     """Manages the connection pool and lifecycle of the Redis client."""
 
     def __init__(self) -> None:
-        self.pool: Optional[ConnectionPool] = None
-        self.client: Optional[Redis] = None
+        self.pool: ConnectionPool | None = None
+        self.client: Redis | None = None
 
     def init_pool(self) -> None:
         """Initialize the Redis Connection Pool with configured parameters."""

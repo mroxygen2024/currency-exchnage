@@ -1,10 +1,10 @@
-from typing import Any, List, Union
+from typing import Annotated, Any
+
 from pydantic import BeforeValidator, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing_extensions import Annotated
 
 
-def parse_cors_origins(v: Any) -> List[str]:
+def parse_cors_origins(v: Any) -> list[str]:
     if isinstance(v, str):
         return [item.strip() for item in v.split(",") if item.strip()]
     if isinstance(v, list):

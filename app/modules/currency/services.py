@@ -1,14 +1,18 @@
-from typing import List, Optional
 import re
 from datetime import datetime
+
 from redis.asyncio import Redis
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestException, NotFoundException, ForbiddenException
+from app.core.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from app.core.logging import logger
 from app.modules.auth.models import User
-from app.modules.currency.models import CurrencyRate, CurrencyConversion
+from app.modules.currency.models import CurrencyConversion, CurrencyRate
 from app.modules.currency.websocket import ws_manager
 
 
@@ -18,7 +22,7 @@ def _get_cache_key(base: str, target: str) -> str:
 
 async def get_rate(
     db: AsyncSession, redis: Redis, base: str, target: str
-) -> Optional[CurrencyRate]:
+) -> CurrencyRate | None:
     """Retrieve exchange rate for a currency pair, leveraging Redis caching.
 
     Checks the cache first. On miss, it queries PostgreSQL, populates the cache,
@@ -119,7 +123,7 @@ async def update_or_create_rate(
     return db_rate
 
 
-async def list_rates(db: AsyncSession) -> List[CurrencyRate]:
+async def list_rates(db: AsyncSession) -> list[CurrencyRate]:
     """Retrieve all currency exchange rate records from the database."""
     stmt = select(CurrencyRate).order_by(CurrencyRate.base_currency)
     result = await db.execute(stmt)
@@ -132,9 +136,10 @@ async def convert_currency(
     from_currency: str,
     to_currency: str,
     amount: float,
-    user_id: Optional[int] = None,
+    user_id: int | None = None,
 ) -> CurrencyConversion:
-    """Validate currencies and amount, calculate conversion, and save details to history.
+    """Validate currencies and amount, calculate conversion, and save
+    details to history.
 
     Supports:
     - Same currency (rate = 1.0)
@@ -191,7 +196,10 @@ async def convert_currency(
 
                 if rate is None:
                     raise NotFoundException(
-                        message=f"Exchange rate for pair {from_upper}/{to_upper} was not found."
+                        message=(
+                            f"Exchange rate for pair {from_upper}/{to_upper} "
+                            "was not found."
+                        )
                     )
 
     # 3. Calculate conversion
@@ -227,13 +235,13 @@ async def list_history(
     user: User,
     page: int = 1,
     limit: int = 10,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    from_currency: Optional[str] = None,
-    to_currency: Optional[str] = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    from_currency: str | None = None,
+    to_currency: str | None = None,
     sort_by: str = "converted_at",
     sort_order: str = "desc",
-    filter_user_id: Optional[int] = None,
+    filter_user_id: int | None = None,
 ) -> dict:
     """Retrieve paginated and filtered list of currency conversion history.
 
@@ -266,8 +274,9 @@ async def list_history(
     # 3. Sorting
     valid_sort_fields = {"converted_at", "amount", "rate", "result"}
     if sort_by not in valid_sort_fields:
+        options = ", ".join(valid_sort_fields)
         raise BadRequestException(
-            message=f"Invalid sort field '{sort_by}'. Valid options are: {', '.join(valid_sort_fields)}"
+            message=f"Invalid sort field '{sort_by}'. Valid options are: {options}"
         )
 
     sort_order_lower = sort_order.lower()
@@ -353,4 +362,3 @@ async def delete_history(
         id=conversion_id,
         user_id=user.id,
     )
-

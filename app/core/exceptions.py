@@ -1,7 +1,8 @@
-from typing import Any, Dict, Optional
+from typing import Any
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.logging import logger
@@ -15,7 +16,7 @@ class AppException(Exception):
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
         code: str = "INTERNAL_SERVER_ERROR",
         message: str = "An unexpected error occurred.",
-        details: Optional[Any] = None,
+        details: Any | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
@@ -27,7 +28,9 @@ class AppException(Exception):
 class NotFoundException(AppException):
     """Raised when a requested resource is not found."""
 
-    def __init__(self, message: str = "Resource not found.", details: Optional[Any] = None) -> None:
+    def __init__(
+        self, message: str = "Resource not found.", details: Any | None = None
+    ) -> None:
         super().__init__(
             status_code=status.HTTP_404_NOT_FOUND,
             code="NOT_FOUND",
@@ -39,7 +42,9 @@ class NotFoundException(AppException):
 class BadRequestException(AppException):
     """Raised for malformed client requests or business logic violations."""
 
-    def __init__(self, message: str = "Bad request.", details: Optional[Any] = None) -> None:
+    def __init__(
+        self, message: str = "Bad request.", details: Any | None = None
+    ) -> None:
         super().__init__(
             status_code=status.HTTP_400_BAD_REQUEST,
             code="BAD_REQUEST",
@@ -51,7 +56,9 @@ class BadRequestException(AppException):
 class UnauthorizedException(AppException):
     """Raised for authentication failures."""
 
-    def __init__(self, message: str = "Unauthorized.", details: Optional[Any] = None) -> None:
+    def __init__(
+        self, message: str = "Unauthorized.", details: Any | None = None
+    ) -> None:
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="UNAUTHORIZED",
@@ -63,7 +70,9 @@ class UnauthorizedException(AppException):
 class ForbiddenException(AppException):
     """Raised when access is forbidden for the current user."""
 
-    def __init__(self, message: str = "Forbidden.", details: Optional[Any] = None) -> None:
+    def __init__(
+        self, message: str = "Forbidden.", details: Any | None = None
+    ) -> None:
         super().__init__(
             status_code=status.HTTP_403_FORBIDDEN,
             code="FORBIDDEN",
@@ -75,7 +84,9 @@ class ForbiddenException(AppException):
 class DatabaseException(AppException):
     """Raised when database operations fail."""
 
-    def __init__(self, message: str = "Database operation failed.", details: Optional[Any] = None) -> None:
+    def __init__(
+        self, message: str = "Database operation failed.", details: Any | None = None
+    ) -> None:
         super().__init__(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             code="DATABASE_ERROR",
@@ -84,7 +95,6 @@ class DatabaseException(AppException):
         )
 
 
-from fastapi.responses import JSONResponse
 
 
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
@@ -142,7 +152,9 @@ async def validation_exception_handler(
     )
 
 
-async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+async def sqlalchemy_exception_handler(
+    request: Request, exc: SQLAlchemyError
+) -> JSONResponse:
     """Handle database exceptions, logging them as errors to trigger alerts."""
     logger.critical(
         "Database error occurred",

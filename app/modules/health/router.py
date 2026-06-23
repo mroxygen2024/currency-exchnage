@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Response, status
 from redis.asyncio import Redis
 from sqlalchemy import text
@@ -54,7 +55,7 @@ async def health_check(
 
     return {
         "status": "healthy" if is_healthy else "unhealthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "services": {
             "database": db_status,
             "cache": redis_status,

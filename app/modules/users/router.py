@@ -1,4 +1,5 @@
 from typing import Any
+
 from fastapi import APIRouter, Depends, status
 
 from app.modules.auth.dependencies import get_current_active_user
@@ -40,7 +41,10 @@ async def change_password(
     Validates the current password and revokes all active sessions upon success.
     """
     await users_service.change_password(current_user, password_in)
-    return {"success": True, "message": "Password updated successfully. Active sessions revoked."}
+    return {
+        "success": True,
+        "message": "Password updated successfully. Active sessions revoked.",
+    }
 
 
 @router.delete("/me", status_code=status.HTTP_200_OK)

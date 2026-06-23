@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
 import bcrypt
 import jwt
-from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core.config import settings
@@ -39,7 +39,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # JWT Operations
 # ------------------------------------------------------------------------------
 def create_access_token(
-    subject: str, expires_delta: Optional[timedelta] = None, claims: Optional[Dict[str, Any]] = None
+    subject: str,
+    expires_delta: timedelta | None = None,
+    claims: dict[str, Any] | None = None,
 ) -> str:
     """Generate a cryptographically secure JWT Access Token.
 
@@ -48,7 +50,7 @@ def create_access_token(
         expires_delta: Optional custom duration. Defaults to settings.
         claims: Optional dictionary of additional claims.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if expires_delta:
         expire = now + expires_delta
     else:
@@ -70,7 +72,7 @@ def create_access_token(
     )
 
 
-def decode_access_token(token: str) -> Dict[str, Any]:
+def decode_access_token(token: str) -> dict[str, Any]:
     """Decode and validate a JWT access token.
 
     Raises:

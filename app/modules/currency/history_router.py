@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,13 +15,30 @@ router = APIRouter(prefix="/history", tags=["Conversion History"])
 async def get_conversion_history(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(10, ge=1, le=100, description="Items per page"),
-    start_date: Optional[datetime] = Query(None, description="Start datetime filter (inclusive)"),
-    end_date: Optional[datetime] = Query(None, description="End datetime filter (inclusive)"),
-    from_currency: Optional[str] = Query(None, min_length=3, max_length=3, description="Source 3-letter currency code filter"),
-    to_currency: Optional[str] = Query(None, min_length=3, max_length=3, description="Target 3-letter currency code filter"),
-    sort_by: str = Query("converted_at", description="Field to sort by (converted_at, amount, rate, result)"),
+    start_date: datetime | None = Query(
+        None, description="Start datetime filter (inclusive)"
+    ),
+    end_date: datetime | None = Query(
+        None, description="End datetime filter (inclusive)"
+    ),
+    from_currency: str | None = Query(
+        None,
+        min_length=3,
+        max_length=3,
+        description="Source 3-letter currency code filter",
+    ),
+    to_currency: str | None = Query(
+        None,
+        min_length=3,
+        max_length=3,
+        description="Target 3-letter currency code filter",
+    ),
+    sort_by: str = Query(
+        "converted_at",
+        description="Field to sort by (converted_at, amount, rate, result)",
+    ),
     sort_order: str = Query("desc", description="Sort order (asc, desc)"),
-    user_id: Optional[int] = Query(None, description="Admin-only: filter by user ID"),
+    user_id: int | None = Query(None, description="Admin-only: filter by user ID"),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> schemas.PaginatedHistory:

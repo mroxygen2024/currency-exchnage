@@ -1,4 +1,4 @@
-from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
@@ -7,7 +7,9 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=8, description="Plain text password (min 8 chars).")
+    password: str = Field(
+        ..., min_length=8, description="Plain text password (min 8 chars)."
+    )
 
 
 class UserOut(UserBase):
@@ -15,8 +17,8 @@ class UserOut(UserBase):
 
     id: int
     is_active: bool = True
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    first_name: str | None = None
+    last_name: str | None = None
     role: str = "user"
     is_deleted: bool = False
 
@@ -24,17 +26,24 @@ class UserOut(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    refresh_token: str = Field(..., description="Secure refresh token for token rotation.")
+    refresh_token: str = Field(
+        ..., description="Secure refresh token for token rotation."
+    )
 
 
 class TokenPayload(BaseModel):
-    sub: Optional[str] = None
-    exp: Optional[int] = None
+    sub: str | None = None
+    exp: int | None = None
 
 
 class TokenRefreshRequest(BaseModel):
-    refresh_token: str = Field(..., description="Valid refresh token to obtain a new access/refresh token pair.")
+    refresh_token: str = Field(
+        ...,
+        description="Valid refresh token to obtain a new access/refresh token pair.",
+    )
 
 
 class LogoutRequest(BaseModel):
-    refresh_token: str = Field(..., description="The refresh token to revoke upon logout.")
+    refresh_token: str = Field(
+        ..., description="The refresh token to revoke upon logout."
+    )

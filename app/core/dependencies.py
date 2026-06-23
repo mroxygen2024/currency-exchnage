@@ -1,9 +1,7 @@
-from typing import Optional
+
 from fastapi import Depends
 
-from app.core.database import get_db
 from app.core.exceptions import UnauthorizedException
-from app.core.redis import get_redis
 from app.core.security import decode_access_token, oauth2_scheme
 
 
@@ -30,7 +28,7 @@ async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
     return user_id
 
 
-async def get_optional_user_id(token: str = Depends(oauth2_scheme)) -> Optional[str]:
+async def get_optional_user_id(token: str = Depends(oauth2_scheme)) -> str | None:
     """Retrieve the User ID from the Authorization header if provided.
 
     If no token is provided, returns None. If a token is provided but is

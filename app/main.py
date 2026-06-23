@@ -1,5 +1,6 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,8 +9,8 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import logger, setup_logging
 from app.core.redis import redis_manager
 from app.modules.auth.router import router as auth_router
-from app.modules.currency.router import router as currency_router
 from app.modules.currency.history_router import router as history_router
+from app.modules.currency.router import router as currency_router
 from app.modules.health.router import router as health_router
 from app.modules.users.router import router as users_router
 from app.tasks.broker import broker
@@ -19,7 +20,7 @@ from app.tasks.broker import broker
 # Lifespan Hook (FastAPI 0.115+)
 # ------------------------------------------------------------------------------
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Manages the startup and shutdown event lifecycle of the application."""
     # 1. Setup Structured JSON logging
     setup_logging()

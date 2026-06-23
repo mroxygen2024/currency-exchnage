@@ -1,4 +1,4 @@
-from typing import Dict, Set
+
 from fastapi import WebSocket
 
 from app.core.logging import logger
@@ -12,7 +12,7 @@ class WebSocketManager:
     """
 
     def __init__(self) -> None:
-        self.active_connections: Dict[str, Set[WebSocket]] = {}
+        self.active_connections: dict[str, set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, channel: str) -> None:
         """Accept connection and subscribe it to a specific currency channel."""

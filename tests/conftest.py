@@ -1,6 +1,6 @@
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock
-import pytest
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -59,10 +59,10 @@ async def mock_redis() -> AsyncMock:
     # Simple in-memory storage simulating cache behaviors
     cache_store = {}
 
-    async def get_val(key: str) -> Optional[str]:
+    async def get_val(key: str) -> str | None:
         return cache_store.get(key)
 
-    async def setex_val(key: str, time: int, value: str) -> bool:
+    async def setex_val(key: str, _time: int, value: str) -> bool:
         cache_store[key] = value
         return True
 
