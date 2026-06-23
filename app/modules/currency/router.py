@@ -1,9 +1,9 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user_id, get_db, get_redis
+from app.core.dependencies import get_current_user_id, get_db, get_redis, get_optional_user_id
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.modules.currency import schemas, services
 from app.modules.currency.websocket import ws_manager
@@ -36,14 +36,17 @@ async def convert_currency(
     ),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
+    current_user_id: Optional[str] = Depends(get_optional_user_id),
 ) -> schemas.CurrencyConversionOut:
     """Perform currency conversion and record the transaction in the history log."""
+    user_id = int(current_user_id) if current_user_id else None
     return await services.convert_currency(
         db=db,
         redis=redis,
         from_currency=from_currency,
         to_currency=to_currency,
         amount=amount,
+        user_id=user_id,
     )
 
 

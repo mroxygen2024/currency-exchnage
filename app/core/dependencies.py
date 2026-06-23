@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Depends
 
 from app.core.database import get_db
@@ -17,6 +18,26 @@ async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
             message="Authentication credentials were not provided.",
             details={"error_code": "CREDENTIALS_MISSING"},
         )
+
+    payload = decode_access_token(token)
+    user_id: str = payload.get("sub")
+    if not user_id:
+        raise UnauthorizedException(
+            message="Token payload is invalid. Subject is missing.",
+            details={"error_code": "SUBJECT_MISSING"},
+        )
+
+    return user_id
+
+
+async def get_optional_user_id(token: str = Depends(oauth2_scheme)) -> Optional[str]:
+    """Retrieve the User ID from the Authorization header if provided.
+
+    If no token is provided, returns None. If a token is provided but is
+    invalid or expired, raises the corresponding UnauthorizedException.
+    """
+    if not token:
+        return None
 
     payload = decode_access_token(token)
     user_id: str = payload.get("sub")

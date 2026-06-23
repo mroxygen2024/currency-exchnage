@@ -1,11 +1,13 @@
 from typing import List, Optional
 import re
+from datetime import datetime
 from redis.asyncio import Redis
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.exceptions import BadRequestException, NotFoundException, ForbiddenException
 from app.core.logging import logger
+from app.modules.auth.models import User
 from app.modules.currency.models import CurrencyRate, CurrencyConversion
 from app.modules.currency.websocket import ws_manager
 
@@ -125,7 +127,12 @@ async def list_rates(db: AsyncSession) -> List[CurrencyRate]:
 
 
 async def convert_currency(
-    db: AsyncSession, redis: Redis, from_currency: str, to_currency: str, amount: float
+    db: AsyncSession,
+    redis: Redis,
+    from_currency: str,
+    to_currency: str,
+    amount: float,
+    user_id: Optional[int] = None,
 ) -> CurrencyConversion:
     """Validate currencies and amount, calculate conversion, and save details to history.
 
@@ -192,6 +199,7 @@ async def convert_currency(
 
     # 4. Save conversion history
     conversion = CurrencyConversion(
+        user_id=user_id,
         from_currency=from_upper,
         to_currency=to_upper,
         amount=amount,
@@ -203,6 +211,7 @@ async def convert_currency(
 
     logger.info(
         "Successfully performed currency conversion and saved to history",
+        user_id=user_id,
         from_currency=from_upper,
         to_currency=to_upper,
         amount=amount,
@@ -211,4 +220,137 @@ async def convert_currency(
     )
 
     return conversion
+
+
+async def list_history(
+    db: AsyncSession,
+    user: User,
+    page: int = 1,
+    limit: int = 10,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    from_currency: Optional[str] = None,
+    to_currency: Optional[str] = None,
+    sort_by: str = "converted_at",
+    sort_order: str = "desc",
+    filter_user_id: Optional[int] = None,
+) -> dict:
+    """Retrieve paginated and filtered list of currency conversion history.
+
+    - Standard users can only view their own conversions.
+    - Admins can view all conversions, or filter by a specific user's ID.
+    """
+    # 1. Base Query & Authorization Filter
+    query = select(CurrencyConversion)
+    filters = []
+
+    if user.role == "admin":
+        if filter_user_id is not None:
+            filters.append(CurrencyConversion.user_id == filter_user_id)
+    else:
+        filters.append(CurrencyConversion.user_id == user.id)
+
+    # 2. Apply filters
+    if from_currency:
+        filters.append(CurrencyConversion.from_currency == from_currency.upper())
+    if to_currency:
+        filters.append(CurrencyConversion.to_currency == to_currency.upper())
+    if start_date:
+        filters.append(CurrencyConversion.converted_at >= start_date)
+    if end_date:
+        filters.append(CurrencyConversion.converted_at <= end_date)
+
+    if filters:
+        query = query.where(*filters)
+
+    # 3. Sorting
+    valid_sort_fields = {"converted_at", "amount", "rate", "result"}
+    if sort_by not in valid_sort_fields:
+        raise BadRequestException(
+            message=f"Invalid sort field '{sort_by}'. Valid options are: {', '.join(valid_sort_fields)}"
+        )
+
+    sort_order_lower = sort_order.lower()
+    if sort_order_lower not in {"asc", "desc"}:
+        raise BadRequestException(
+            message="Invalid sort order. Valid options are 'asc' or 'desc'."
+        )
+
+    field = getattr(CurrencyConversion, sort_by)
+    if sort_order_lower == "desc":
+        query = query.order_by(field.desc())
+    else:
+        query = query.order_by(field.asc())
+
+    # 4. Count total
+    count_stmt = select(func.count(CurrencyConversion.id)).where(*filters)
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar() or 0
+
+    # 5. Apply pagination
+    offset = (page - 1) * limit
+    query = query.offset(offset).limit(limit)
+
+    # 6. Execute query
+    result = await db.execute(query)
+    items = result.scalars().all()
+
+    pages = (total + limit - 1) // limit if total > 0 else 0
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": pages,
+    }
+
+
+async def get_history_by_id(
+    db: AsyncSession,
+    conversion_id: int,
+    user: User,
+) -> CurrencyConversion:
+    """Retrieve details of a specific conversion history record.
+
+    Validates that the record exists and that the user is authorized to view it.
+    - Admins can view any record.
+    - Standard users can only view their own records.
+    """
+    stmt = select(CurrencyConversion).where(CurrencyConversion.id == conversion_id)
+    result = await db.execute(stmt)
+    conversion = result.scalar_one_or_none()
+
+    if not conversion:
+        raise NotFoundException(
+            message=f"Conversion history record with ID {conversion_id} not found."
+        )
+
+    # Authorization check
+    if user.role != "admin" and conversion.user_id != user.id:
+        raise ForbiddenException(
+            message="You do not have permission to view this conversion history record."
+        )
+
+    return conversion
+
+
+async def delete_history(
+    db: AsyncSession,
+    conversion_id: int,
+    user: User,
+) -> None:
+    """Delete a conversion history record.
+
+    - Standard users can only delete their own records.
+    - Admins can delete any record.
+    """
+    conversion = await get_history_by_id(db, conversion_id, user)
+    await db.delete(conversion)
+    await db.flush()
+    logger.info(
+        "Successfully deleted conversion history record",
+        id=conversion_id,
+        user_id=user.id,
+    )
 

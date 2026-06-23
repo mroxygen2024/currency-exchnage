@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, Numeric, String
+from typing import Optional
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -28,6 +29,9 @@ class CurrencyConversion(Base):
     __tablename__ = "currency_conversions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     from_currency: Mapped[str] = mapped_column(String(3), index=True, nullable=False)
     to_currency: Mapped[str] = mapped_column(String(3), index=True, nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
