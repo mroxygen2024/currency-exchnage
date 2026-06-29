@@ -147,8 +147,9 @@ async def update_or_create_rate(
 
     # Queue threshold alert check task asynchronously
     try:
-        from app.modules.notifications.tasks import check_threshold_alerts_task
-        await check_threshold_alerts_task.kiq(
+        from app.modules.notifications.tasks import check_threshold_alerts_celery_task
+
+        check_threshold_alerts_celery_task.delay(
             base=base_upper,
             target=target_upper,
             current_rate=rate,
@@ -156,7 +157,7 @@ async def update_or_create_rate(
         logger.info("Successfully queued threshold alert checks", pair=pair, rate=rate)
     except Exception as exc:
         logger.error(
-            "Failed to queue check_threshold_alerts_task",
+            "Failed to queue check_threshold_alerts_celery_task",
             pair=pair,
             error=str(exc),
         )
@@ -572,7 +573,7 @@ async def get_rate_trends(
         func.avg(CurrencyRateHistory.rate).label("avg_rate"),
         func.min(CurrencyRateHistory.rate).label("min_rate"),
         func.max(CurrencyRateHistory.rate).label("max_rate"),
-        func.count(CurrencyRateHistory.id).label("total_count")
+        func.count(CurrencyRateHistory.id).label("total_count"),
     ).where(*filters)
 
     stats_res = await db.execute(stats_stmt)
@@ -593,7 +594,7 @@ async def get_rate_trends(
                 "percentage_change": 0.0,
                 "min_rate": 0.0,
                 "max_rate": 0.0,
-            }
+            },
         }
         return empty_res
 
@@ -617,11 +618,7 @@ async def get_rate_trends(
 
     # Calculate percentage change
     percentage_change = 0.0
-    if (
-        oldest_rate is not None
-        and latest_rate is not None
-        and float(oldest_rate) > 0
-    ):
+    if oldest_rate is not None and latest_rate is not None and float(oldest_rate) > 0:
         diff = float(latest_rate) - float(oldest_rate)
         percentage_change = (diff / float(oldest_rate)) * 100.0
 
@@ -638,10 +635,7 @@ async def get_rate_trends(
     items = trends_res.scalars().all()
 
     trends = [
-        {
-            "rate": float(item.rate),
-            "timestamp": item.timestamp.isoformat()
-        }
+        {"rate": float(item.rate), "timestamp": item.timestamp.isoformat()}
         for item in items
     ]
 
@@ -660,19 +654,16 @@ async def get_rate_trends(
             "percentage_change": float(percentage_change),
             "min_rate": float(min_rate) if min_rate is not None else 0.0,
             "max_rate": float(max_rate) if max_rate is not None else 0.0,
-        }
+        },
     }
 
     # 3. Cache the result in Redis
     try:
         await redis.setex(
-            cache_key,
-            settings.CACHE_EXPIRE_SECONDS,
-            json.dumps(result_data)
+            cache_key, settings.CACHE_EXPIRE_SECONDS, json.dumps(result_data)
         )
         logger.info("Successfully populated Redis cache for rate trends", key=cache_key)
     except Exception as exc:
         logger.error("Failed to populate Redis cache for rate trends", error=str(exc))
 
     return result_data
-

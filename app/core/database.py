@@ -42,6 +42,10 @@ class Base(DeclarativeBase):
     pass
 
 
+# Global reference to hold the active transactional session during test execution
+CURRENT_TEST_DB: AsyncSession | None = None
+
+
 # ------------------------------------------------------------------------------
 # Context Manager and Dependencies
 # ------------------------------------------------------------------------------
@@ -52,6 +56,10 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
     This ensures that sessions are properly committed, rolled back on error,
     and closed at the end of the operation lifecycle.
     """
+    if CURRENT_TEST_DB is not None:
+        yield CURRENT_TEST_DB
+        return
+
     session = AsyncSessionLocal()
     try:
         yield session

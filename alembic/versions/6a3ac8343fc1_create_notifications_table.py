@@ -5,17 +5,18 @@ Revises: cf7051e7f1e3
 Create Date: 2026-06-23 14:56:51.388753
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '6a3ac8343fc1'
-down_revision: Union[str, Sequence[str], None] = 'cf7051e7f1e3'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "6a3ac8343fc1"
+down_revision: str | Sequence[str] | None = "cf7051e7f1e3"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -28,10 +29,22 @@ def upgrade() -> None:
         sa.Column("target_currency", sa.String(length=3), nullable=False),
         sa.Column("threshold", sa.Numeric(precision=18, scale=6), nullable=False),
         sa.Column("condition", sa.String(length=10), nullable=False),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column(
+            "is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
         sa.Column("last_triggered_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
@@ -50,7 +63,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_notification_subscriptions_id"), "notification_subscriptions", ["id"], unique=False
+        op.f("ix_notification_subscriptions_id"),
+        "notification_subscriptions",
+        ["id"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_notification_subscriptions_target_currency"),
@@ -68,8 +84,20 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index(op.f("ix_notification_subscriptions_user_id"), table_name="notification_subscriptions")
-    op.drop_index(op.f("ix_notification_subscriptions_target_currency"), table_name="notification_subscriptions")
-    op.drop_index(op.f("ix_notification_subscriptions_id"), table_name="notification_subscriptions")
-    op.drop_index(op.f("ix_notification_subscriptions_base_currency"), table_name="notification_subscriptions")
+    op.drop_index(
+        op.f("ix_notification_subscriptions_user_id"),
+        table_name="notification_subscriptions",
+    )
+    op.drop_index(
+        op.f("ix_notification_subscriptions_target_currency"),
+        table_name="notification_subscriptions",
+    )
+    op.drop_index(
+        op.f("ix_notification_subscriptions_id"),
+        table_name="notification_subscriptions",
+    )
+    op.drop_index(
+        op.f("ix_notification_subscriptions_base_currency"),
+        table_name="notification_subscriptions",
+    )
     op.drop_table("notification_subscriptions")

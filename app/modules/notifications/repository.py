@@ -12,7 +12,9 @@ class NotificationsRepository:
 
     async def get_by_id(self, subscription_id: int) -> NotificationSubscription | None:
         """Fetch a NotificationSubscription by its ID."""
-        stmt = select(NotificationSubscription).where(NotificationSubscription.id == subscription_id)
+        stmt = select(NotificationSubscription).where(
+            NotificationSubscription.id == subscription_id
+        )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -40,7 +42,9 @@ class NotificationsRepository:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_active_by_pair(self, base: str, target: str) -> list[NotificationSubscription]:
+    async def list_active_by_pair(
+        self, base: str, target: str
+    ) -> list[NotificationSubscription]:
         """Fetch all active NotificationSubscriptions for a currency pair."""
         stmt = select(NotificationSubscription).where(
             NotificationSubscription.base_currency == base.upper(),

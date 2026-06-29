@@ -21,7 +21,9 @@ class EmailService:
         If settings.ENV is "testing", the email is appended to a global in-memory outbox
         instead of invoking real SMTP operations.
         """
-        logger.info("Preparing to send email notification", recipient=to_email, subject=subject)
+        logger.info(
+            "Preparing to send email notification", recipient=to_email, subject=subject
+        )
 
         if settings.ENV == "testing":
             TEST_OUTBOX.append(
@@ -43,7 +45,9 @@ class EmailService:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
         # Use settings configured values
-        from_email = getattr(settings, "EMAILS_FROM_EMAIL", "noreply@currencytracker.com")
+        from_email = getattr(
+            settings, "EMAILS_FROM_EMAIL", "noreply@currencytracker.com"
+        )
         from_name = getattr(settings, "EMAILS_FROM_NAME", "Currency Tracker")
         message["From"] = f"{from_name} <{from_email}>"
         message["To"] = to_email
@@ -80,7 +84,11 @@ class EmailService:
 
                 server.sendmail(from_email, to_email, message.as_string())
                 server.quit()
-                logger.info("Successfully sent email via SMTP", recipient=to_email, subject=subject)
+                logger.info(
+                    "Successfully sent email via SMTP",
+                    recipient=to_email,
+                    subject=subject,
+                )
             except Exception as exc:
                 logger.error(
                     "SMTP email sending failed",

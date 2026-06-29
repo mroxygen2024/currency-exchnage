@@ -89,12 +89,8 @@ class CurrencyAnalyticsOut(BaseModel):
 
 
 class TrendItem(BaseModel):
-    rate: float = Field(
-        ..., description="Exchange rate at the specific timestamp"
-    )
-    timestamp: datetime = Field(
-        ..., description="Timestamp when the rate was recorded"
-    )
+    rate: float = Field(..., description="Exchange rate at the specific timestamp")
+    timestamp: datetime = Field(..., description="Timestamp when the rate was recorded")
 
 
 class TrendStats(BaseModel):
@@ -104,12 +100,8 @@ class TrendStats(BaseModel):
     percentage_change: float = Field(
         ..., description="Percentage change in rate over the period"
     )
-    min_rate: float = Field(
-        ..., description="Minimum exchange rate over the period"
-    )
-    max_rate: float = Field(
-        ..., description="Maximum exchange rate over the period"
-    )
+    min_rate: float = Field(..., description="Minimum exchange rate over the period")
+    max_rate: float = Field(..., description="Maximum exchange rate over the period")
 
 
 class CurrencyTrendsOut(BaseModel):
@@ -122,14 +114,10 @@ class CurrencyTrendsOut(BaseModel):
     trends: list[TrendItem] = Field(
         ..., description="Paginated historical rate trend points"
     )
-    total: int = Field(
-        ..., description="Total rate data points in selected date range"
-    )
+    total: int = Field(..., description="Total rate data points in selected date range")
     page: int = Field(..., description="Current page number")
     limit: int = Field(..., description="Items per page")
     pages: int = Field(..., description="Total number of pages")
     stats: TrendStats = Field(
         ..., description="Statistical summary for selected period"
     )
-
-

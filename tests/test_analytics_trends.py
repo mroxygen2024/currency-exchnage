@@ -248,6 +248,7 @@ async def test_trends_endpoint_caching_and_invalidation(
         return count
 
     import fnmatch
+
     async def mock_keys_func(pattern: str) -> list[str]:
         return [k for k in cache_store.keys() if fnmatch.fnmatch(k, pattern)]
 

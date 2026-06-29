@@ -59,4 +59,3 @@ class CurrencyRateHistory(Base):
         nullable=False,
         index=True,
     )
-

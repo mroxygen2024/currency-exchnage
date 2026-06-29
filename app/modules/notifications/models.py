@@ -27,7 +27,9 @@ class NotificationSubscription(Base):
     base_currency: Mapped[str] = mapped_column(String(3), index=True, nullable=False)
     target_currency: Mapped[str] = mapped_column(String(3), index=True, nullable=False)
     threshold: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
-    condition: Mapped[str] = mapped_column(String(10), nullable=False)  # "above" or "below"
+    condition: Mapped[str] = mapped_column(
+        String(10), nullable=False
+    )  # "above" or "below"
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_triggered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None

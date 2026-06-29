@@ -88,7 +88,7 @@ services:
       start_period: 10s
 
   # ----------------------------------------------------------------------------
-  # Celery Worker (Taskiq Worker)
+  # Celery Worker Service
   # ----------------------------------------------------------------------------
   celery_worker:
     build:
@@ -119,14 +119,14 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      # Verifies the process is running inside the container
-      test: ["CMD-SHELL", "pgrep -f 'taskiq worker' || exit 1"]
+      # Verifies the Celery process is running and responsive to commands
+      test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
 
   # ----------------------------------------------------------------------------
-  # Celery Beat (Taskiq Scheduler)
+  # Celery Beat Service (Periodic Scheduler)
   # ----------------------------------------------------------------------------
   celery_beat:
     build:
@@ -155,6 +155,31 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  # ----------------------------------------------------------------------------
+  # Flower (Celery Monitoring Interface)
+  # ----------------------------------------------------------------------------
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: currency_tracker_flower
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app flower --port=5555
+    environment:
+      ENV: development
+      SECRET_KEY: ${SECRET_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "5555:5555"
+    networks:
+      - app_network
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery_worker:
         condition: service_healthy
 
   # ----------------------------------------------------------------------------

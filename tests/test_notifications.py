@@ -17,8 +17,6 @@ from app.modules.notifications.service import NotificationsService
 from app.modules.notifications.tasks import (
     check_threshold_alerts_task,
     daily_summaries_scheduler_task,
-    send_alert_email_task,
-    send_daily_summary_task,
 )
 
 # Global reference to current test database session for taskiq dependency resolution
@@ -40,55 +38,6 @@ def clear_outbox() -> None:
     TEST_OUTBOX.clear()
     yield
     TEST_OUTBOX.clear()
-
-
-@pytest.fixture(autouse=True)
-def mock_taskiq_kiq(monkeypatch) -> None:
-    """Monkeypatch taskiq .kiq methods to run tasks immediately and synchronously."""
-
-    async def mock_kiq_send_alert(
-        recipient_email: str,
-        base: str,
-        target: str,
-        current_rate: float,
-        threshold: float,
-        condition: str,
-    ) -> None:
-        await send_alert_email_task(
-            recipient_email=recipient_email,
-            base=base,
-            target=target,
-            current_rate=current_rate,
-            threshold=threshold,
-            condition=condition,
-        )
-
-    async def mock_kiq_send_daily(
-        recipient_email: str,
-        pairs_data: list[dict],
-    ) -> None:
-        await send_daily_summary_task(
-            recipient_email=recipient_email,
-            pairs_data=pairs_data,
-        )
-
-    async def mock_kiq_check_alerts(
-        base: str,
-        target: str,
-        current_rate: float,
-        db: AsyncSession | None = None,
-    ) -> None:
-        actual_db = db or CURRENT_TEST_DB
-        await check_threshold_alerts_task(
-            base=base,
-            target=target,
-            current_rate=current_rate,
-            db=actual_db,
-        )
-
-    monkeypatch.setattr(send_alert_email_task, "kiq", mock_kiq_send_alert)
-    monkeypatch.setattr(send_daily_summary_task, "kiq", mock_kiq_send_daily)
-    monkeypatch.setattr(check_threshold_alerts_task, "kiq", mock_kiq_check_alerts)
 
 
 @pytest.mark.anyio
@@ -352,7 +301,9 @@ async def test_delete_subscription(client: AsyncClient) -> None:
     sub_id = add_resp.json()["id"]
 
     # 3. User 2 attempts to delete User 1's subscription -> 403 Forbidden
-    del_fail = await client.delete(f"/api/v1/notifications/{sub_id}", headers=headers_u2)
+    del_fail = await client.delete(
+        f"/api/v1/notifications/{sub_id}", headers=headers_u2
+    )
     assert del_fail.status_code == 403
 
     # 4. User 1 deletes successfully -> 200 OK
@@ -360,7 +311,9 @@ async def test_delete_subscription(client: AsyncClient) -> None:
     assert del_ok.status_code == 200
 
     # 5. Delete non-existent subscription -> 404
-    del_missing = await client.delete(f"/api/v1/notifications/{sub_id}", headers=headers_u1)
+    del_missing = await client.delete(
+        f"/api/v1/notifications/{sub_id}", headers=headers_u1
+    )
     assert del_missing.status_code == 404
 
 
@@ -411,7 +364,9 @@ async def test_delete_subscription_by_admin(
     headers_admin = {"Authorization": f"Bearer {login_admin.json()['access_token']}"}
 
     # 3. Admin deletes normal user's subscription
-    del_ok = await client.delete(f"/api/v1/notifications/{sub_id}", headers=headers_admin)
+    del_ok = await client.delete(
+        f"/api/v1/notifications/{sub_id}", headers=headers_admin
+    )
     assert del_ok.status_code == 200
 
 
@@ -464,6 +419,7 @@ async def test_notifications_service_direct(db_session: AsyncSession) -> None:
 async def test_check_threshold_alerts_task_trigger(db_session: AsyncSession) -> None:
     """Verify check_threshold_alerts_task detects threshold cross and sends email."""
     from sqlalchemy import delete
+
     await db_session.execute(delete(NotificationSubscription))
     TEST_OUTBOX.clear()
 

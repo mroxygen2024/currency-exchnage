@@ -5,6 +5,7 @@ Revises: d20128b2a3d7
 Create Date: 2026-06-23 14:37:34.945292
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'cf7051e7f1e3'
-down_revision: str | Sequence[str] | None = 'd20128b2a3d7'
+revision: str = "cf7051e7f1e3"
+down_revision: str | Sequence[str] | None = "d20128b2a3d7"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

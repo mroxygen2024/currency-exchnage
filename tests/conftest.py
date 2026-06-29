@@ -1,12 +1,14 @@
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Force environment to 'testing' for all tests
 from app.core.config import settings
+
 settings.ENV = "testing"
 
 from app.core.database import Base, get_db
@@ -50,8 +52,90 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
         autoflush=False,
     )
     async with session_factory() as session:
-        yield session
-        await session.rollback()
+        # Mock session.commit to perform session.flush instead, preventing permanent commits
+        # during tests and isolating all database changes to the current test case.
+        original_commit = session.commit
+
+        async def mock_commit():
+            await session.flush()
+
+        session.commit = mock_commit
+
+        import app.core.database
+
+        app.core.database.CURRENT_TEST_DB = session
+        try:
+            yield session
+        finally:
+            app.core.database.CURRENT_TEST_DB = None
+            session.commit = original_commit
+            await session.rollback()
+
+
+@pytest.fixture(autouse=True)
+def mock_celery_delay(monkeypatch) -> None:
+    """Monkeypatch Celery task .delay methods to run tasks immediately and synchronously."""
+    from app.modules.notifications.tasks import (
+        check_threshold_alerts_celery_task,
+        check_threshold_alerts_task,
+        send_alert_email_celery_task,
+        send_alert_email_task,
+        send_daily_summary_celery_task,
+        send_daily_summary_task,
+    )
+    from app.tasks.celery_app import run_async
+
+    def mock_delay_send_alert(
+        recipient_email: str,
+        base: str,
+        target: str,
+        current_rate: float,
+        threshold: float,
+        condition: str,
+    ):
+        run_async(
+            send_alert_email_task(
+                recipient_email=recipient_email,
+                base=base,
+                target=target,
+                current_rate=current_rate,
+                threshold=threshold,
+                condition=condition,
+            )
+        )
+
+    def mock_delay_send_daily(
+        recipient_email: str,
+        pairs_data: list[dict],
+    ):
+        run_async(
+            send_daily_summary_task(
+                recipient_email=recipient_email,
+                pairs_data=pairs_data,
+            )
+        )
+
+    def mock_delay_check_alerts(
+        base: str,
+        target: str,
+        current_rate: float,
+    ):
+        import app.core.database
+
+        run_async(
+            check_threshold_alerts_task(
+                base=base,
+                target=target,
+                current_rate=current_rate,
+                db=app.core.database.CURRENT_TEST_DB,
+            )
+        )
+
+    monkeypatch.setattr(send_alert_email_celery_task, "delay", mock_delay_send_alert)
+    monkeypatch.setattr(send_daily_summary_celery_task, "delay", mock_delay_send_daily)
+    monkeypatch.setattr(
+        check_threshold_alerts_celery_task, "delay", mock_delay_check_alerts
+    )
 
 
 @pytest_asyncio.fixture

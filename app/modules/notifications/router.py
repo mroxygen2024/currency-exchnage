@@ -14,7 +14,11 @@ from app.modules.notifications.service import NotificationsService
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
-@router.post("/subscribe", response_model=NotificationSubscriptionOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/subscribe",
+    response_model=NotificationSubscriptionOut,
+    status_code=status.HTTP_201_CREATED,
+)
 async def subscribe_to_alert(
     subscription_in: NotificationSubscriptionCreate,
     current_user: User = Depends(get_current_active_user),
@@ -24,7 +28,9 @@ async def subscribe_to_alert(
     return await notifications_service.subscribe(current_user, subscription_in)
 
 
-@router.get("", response_model=list[NotificationSubscriptionOut], status_code=status.HTTP_200_OK)
+@router.get(
+    "", response_model=list[NotificationSubscriptionOut], status_code=status.HTTP_200_OK
+)
 async def get_subscriptions(
     current_user: User = Depends(get_current_active_user),
     notifications_service: NotificationsService = Depends(get_notifications_service),
@@ -41,4 +47,7 @@ async def delete_subscription(
 ) -> Any:
     """Delete an active notification alert. Owner or Admin authorization required."""
     await notifications_service.delete_subscription(current_user, subscription_id)
-    return {"success": True, "message": "Notification subscription deleted successfully."}
+    return {
+        "success": True,
+        "message": "Notification subscription deleted successfully.",
+    }

@@ -117,13 +117,13 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'taskiq worker' || exit 1"]
+      test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
 
   # ----------------------------------------------------------------------------
-  # Celery Beat (Taskiq Scheduler)
+  # Celery Beat (Periodic Scheduler)
   # ----------------------------------------------------------------------------
   celery_beat:
     image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_REPOSITORY:-currency-tracker}/web:${IMAGE_TAG:-latest}
@@ -150,6 +150,30 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  # ----------------------------------------------------------------------------
+  # Flower (Celery Monitoring Interface)
+  # ----------------------------------------------------------------------------
+  flower:
+    image: ${DOCKER_REGISTRY:-ghcr.io}/${DOCKER_REPOSITORY:-currency-tracker}/web:${IMAGE_TAG:-latest}
+    container_name: currency_tracker_flower_prod
+    restart: always
+    command: celery -A app.tasks.celery_app flower --port=5555
+    environment:
+      ENV: production
+      SECRET_KEY: ${SECRET_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "5555:5555"
+    networks:
+      - app_network_prod
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery_worker:
         condition: service_healthy
 
   # ----------------------------------------------------------------------------

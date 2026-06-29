@@ -21,7 +21,6 @@ from app.modules.favorites.router import router as favorites_router
 from app.modules.health.router import router as health_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.users.router import router as users_router
-from app.tasks.broker import broker
 
 
 # ------------------------------------------------------------------------------
@@ -49,13 +48,6 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("Skipping Redis connection verification in testing mode.")
 
-    # 3. Initialize Taskiq background worker broker
-    try:
-        await broker.startup()
-        logger.info("Taskiq broker started successfully.")
-    except Exception as exc:
-        logger.error("Failed to start Taskiq broker", error=str(exc))
-
     # Start periodic rates pusher background task
     rates_task = asyncio.create_task(periodic_rates_pusher())
 
@@ -68,13 +60,10 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except asyncio.CancelledError:
         pass
 
-    # 4. Graceful Shutdown: disconnect cache and task brokers
+    # 4. Graceful Shutdown: disconnect cache
     await redis_manager.close_pool()
-    try:
-        await broker.shutdown()
-        logger.info("Taskiq broker shut down successfully.")
-    except Exception as exc:
-        logger.error("Failed to cleanly shut down Taskiq broker", error=str(exc))
+
+    logger.info("Application shutdown complete.")
 
     logger.info("Application shutdown complete.")
 
