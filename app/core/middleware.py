@@ -88,14 +88,26 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
-        # Content Security Policy (CSP) for REST API endpoints
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; "
-            "frame-ancestors 'none'; "
-            "sandbox; "
-            "base-uri 'none'; "
-            "form-action 'none';"
-        )
+        # Content Security Policy (CSP)
+        # Relax policy for documentation endpoints (/docs, /redoc, /openapi.json) to allow CDN assets
+        path = request.url.path.rstrip("/")
+        if path in ("/docs", "/redoc", "/openapi.json"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "img-src 'self' data: https://fastapi.tiangolo.com; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none';"
+            )
+        else:
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; "
+                "frame-ancestors 'none'; "
+                "sandbox; "
+                "base-uri 'none'; "
+                "form-action 'none';"
+            )
 
         # HTTP Strict Transport Security (HSTS) - only in production environments
         if settings.ENV == "production":

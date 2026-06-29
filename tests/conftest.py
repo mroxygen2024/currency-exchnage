@@ -213,6 +213,8 @@ async def mock_redis() -> AsyncMock:
     redis.setex.side_effect = setex_val
     redis.delete.side_effect = delete_val
     redis.expire.side_effect = expire_val
+    from unittest.mock import MagicMock
+    redis.pipeline = MagicMock()
     redis.pipeline.side_effect = lambda *args, **kwargs: MockPipeline(cache_store)
     return redis
 
@@ -233,6 +235,12 @@ async def client(
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as ac:
-        yield ac
+        from app.core.redis import redis_manager
+        original_client = redis_manager.client
+        redis_manager.client = mock_redis
+        try:
+            yield ac
+        finally:
+            redis_manager.client = original_client
 
     app.dependency_overrides.clear()
