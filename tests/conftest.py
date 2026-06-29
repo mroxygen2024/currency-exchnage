@@ -138,6 +138,50 @@ def mock_celery_delay(monkeypatch) -> None:
     )
 
 
+class MockPipeline:
+    """Mock Redis pipeline for simulating transaction blocks in tests."""
+
+    def __init__(self, cache_store: dict):
+        self.cache_store = cache_store
+        self.commands = []
+
+    def incr(self, key: str):
+        self.commands.append(("incr", key))
+        return self
+
+    def ttl(self, key: str):
+        self.commands.append(("ttl", key))
+        return self
+
+    async def execute(self):
+        results = []
+        for cmd, key in self.commands:
+            if cmd == "incr":
+                val = self.cache_store.get(key, 0)
+                if isinstance(val, str):
+                    try:
+                        val = int(val)
+                    except ValueError:
+                        val = 0
+                val += 1
+                self.cache_store[key] = str(val)
+                results.append(val)
+            elif cmd == "ttl":
+                # Return a default mock TTL of 60 seconds (or -1 if first time)
+                # For rate limit, if it is the first increment (making it 1),
+                # we simulate -1 so the code sets the expiration.
+                val = int(self.cache_store.get(key, 0))
+                results.append(-1 if val <= 1 else 60)
+        self.commands = []
+        return results
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 @pytest_asyncio.fixture
 async def mock_redis() -> AsyncMock:
     """Mock Redis client to isolate caching behavior in testing."""
@@ -162,9 +206,14 @@ async def mock_redis() -> AsyncMock:
                 count += 1
         return count
 
+    async def expire_val(_key: str, _seconds: int) -> bool:
+        return True
+
     redis.get.side_effect = get_val
     redis.setex.side_effect = setex_val
     redis.delete.side_effect = delete_val
+    redis.expire.side_effect = expire_val
+    redis.pipeline.side_effect = lambda *args, **kwargs: MockPipeline(cache_store)
     return redis
 
 

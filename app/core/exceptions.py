@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.logging import logger
 
@@ -17,12 +18,14 @@ class AppException(Exception):
         code: str = "INTERNAL_SERVER_ERROR",
         message: str = "An unexpected error occurred.",
         details: Any | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.code = code
         self.message = message
         self.details = details
+        self.headers = headers
 
 
 class NotFoundException(AppException):
@@ -104,12 +107,37 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
     )
     return JSONResponse(
         status_code=exc.status_code,
+        headers=exc.headers,
         content={
             "success": False,
             "error": {
                 "code": exc.code,
                 "message": exc.message,
                 "details": exc.details,
+            },
+        },
+    )
+
+
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
+    """Handle standard HTTP exceptions to ensure consistent JSON formatting."""
+    logger.warn(
+        "HTTP exception occurred",
+        path=request.url.path,
+        status_code=exc.status_code,
+        message=exc.detail,
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        headers=exc.headers,
+        content={
+            "success": False,
+            "error": {
+                "code": f"HTTP_{exc.status_code}",
+                "message": exc.detail,
+                "details": None,
             },
         },
     )
@@ -195,6 +223,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 def register_exception_handlers(app: FastAPI) -> None:
     """Register custom and library exception handlers globally."""
     app.add_exception_handler(AppException, app_exception_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
     app.add_exception_handler(Exception, generic_exception_handler)

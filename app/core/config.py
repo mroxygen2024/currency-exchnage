@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from pydantic import BeforeValidator, computed_field
+from pydantic import BeforeValidator, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,6 +37,22 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Rate Limiting Configurations (Environment configurable)
+    RATE_LIMIT_DEFAULT_LIMIT: int = 100
+    RATE_LIMIT_DEFAULT_WINDOW: int = 60
+    RATE_LIMIT_AUTH_LIMIT: int = 10
+    RATE_LIMIT_AUTH_WINDOW: int = 60
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        """Enforce strict security validation in production environment."""
+        if self.ENV == "production":
+            if not self.SECRET_KEY or len(self.SECRET_KEY) < 32:
+                raise ValueError("SECRET_KEY must be at least 32 characters in production.")
+            if "*" in self.BACKEND_CORS_ORIGINS:
+                raise ValueError("Wildcard CORS origins '*' is not allowed in production.")
+        return self
 
     # --------------------------------------------------------------------------
     # Database Configuration (PostgreSQL)
