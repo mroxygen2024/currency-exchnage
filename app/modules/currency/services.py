@@ -1,5 +1,8 @@
+import csv
+import io
 import json
 import re
+from collections.abc import AsyncGenerator
 from datetime import datetime
 
 from redis.asyncio import Redis
@@ -426,6 +429,82 @@ async def delete_history(
     )
 
 
+class CSVStreamer:
+    """Helper to write CSV rows to an in-memory buffer and retrieve the string."""
+
+    def __init__(self) -> None:
+        self.buffer = io.StringIO()
+        self.writer = csv.writer(self.buffer)
+
+    def write_row(self, row: list) -> str:
+        self.writer.writerow(row)
+        data = self.buffer.getvalue()
+        self.buffer.seek(0)
+        self.buffer.truncate(0)
+        return data
+
+
+async def stream_history_csv(
+    user: User,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    from_currency: str | None = None,
+    to_currency: str | None = None,
+    filter_user_id: int | None = None,
+) -> AsyncGenerator[str, None]:
+    """Generate CSV rows of currency conversion history for streaming.
+
+    - Standard users can only stream their own conversions.
+    - Admins can stream all conversions or filter by user ID.
+    """
+    # 1. Base Query & Authorization Filter
+    query = select(CurrencyConversion)
+    filters = []
+
+    if user.role == "admin":
+        if filter_user_id is not None:
+            filters.append(CurrencyConversion.user_id == filter_user_id)
+    else:
+        filters.append(CurrencyConversion.user_id == user.id)
+
+    # 2. Apply filters
+    if from_currency:
+        filters.append(CurrencyConversion.from_currency == from_currency.upper())
+    if to_currency:
+        filters.append(CurrencyConversion.to_currency == to_currency.upper())
+    if start_date:
+        filters.append(CurrencyConversion.converted_at >= start_date)
+    if end_date:
+        filters.append(CurrencyConversion.converted_at <= end_date)
+
+    if filters:
+        query = query.where(*filters)
+
+    # Order by converted_at desc (newest first)
+    query = query.order_by(CurrencyConversion.converted_at.desc())
+
+    # 3. Stream from Database using context manager
+    from app.core.database import get_db_context
+
+    async with get_db_context() as db:
+        streamer = CSVStreamer()
+        # Header row
+        yield streamer.write_row(["Date", "Currency Pair", "Amount", "Result"])
+
+        # Stream result from SQLAlchemy session
+        result_stream = await db.stream_scalars(query)
+        async for conversion in result_stream:
+            pair = f"{conversion.from_currency}/{conversion.to_currency}"
+            yield streamer.write_row(
+                [
+                    conversion.converted_at.isoformat(),
+                    pair,
+                    float(conversion.amount),
+                    float(conversion.result),
+                ]
+            )
+
+
 async def get_analytics(db: AsyncSession, redis: Redis) -> dict:
     """Retrieve system-wide currency conversion analytics, leveraging Redis caching.
 
@@ -472,9 +551,9 @@ async def get_analytics(db: AsyncSession, redis: Redis) -> dict:
             "from_currency": row.from_currency,
             "to_currency": row.to_currency,
             "count": row.count,
-            "total_amount": float(row.total_amount)
-            if row.total_amount is not None
-            else 0.0,
+            "total_amount": (
+                float(row.total_amount) if row.total_amount is not None else 0.0
+            ),
         }
         for row in popular_pairs_rows
     ]
@@ -488,9 +567,9 @@ async def get_analytics(db: AsyncSession, redis: Redis) -> dict:
     volume_rows = volume_res.all()
 
     total_volume_by_currency = {
-        row.from_currency: float(row.total_amount)
-        if row.total_amount is not None
-        else 0.0
+        row.from_currency: (
+            float(row.total_amount) if row.total_amount is not None else 0.0
+        )
         for row in volume_rows
     }
 

@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,6 +62,50 @@ async def get_conversion_history(
         sort_by=sort_by,
         sort_order=sort_order,
         filter_user_id=user_id,
+    )
+
+
+@router.get("/export")
+async def export_conversion_history(
+    start_date: datetime | None = Query(
+        None, description="Start datetime filter (inclusive)"
+    ),
+    end_date: datetime | None = Query(
+        None, description="End datetime filter (inclusive)"
+    ),
+    from_currency: str | None = Query(
+        None,
+        min_length=3,
+        max_length=3,
+        description="Source 3-letter currency code filter",
+    ),
+    to_currency: str | None = Query(
+        None,
+        min_length=3,
+        max_length=3,
+        description="Target 3-letter currency code filter",
+    ),
+    user_id: int | None = Query(None, description="Admin-only: filter by user ID"),
+    current_user: User = Depends(get_current_active_user),
+) -> StreamingResponse:
+    """Export conversion history log as a streamed CSV file.
+
+    - Standard users can only export their own history.
+    - Admins can query any user's history or export global history.
+    """
+    csv_generator = services.stream_history_csv(
+        user=current_user,
+        start_date=start_date,
+        end_date=end_date,
+        from_currency=from_currency,
+        to_currency=to_currency,
+        filter_user_id=user_id,
+    )
+    headers = {"Content-Disposition": 'attachment; filename="conversion_history.csv"'}
+    return StreamingResponse(
+        csv_generator,
+        media_type="text/csv",
+        headers=headers,
     )
 
 

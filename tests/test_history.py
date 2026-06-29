@@ -1,3 +1,5 @@
+import csv
+import io
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -332,3 +334,141 @@ async def test_delete_history_record_authorization(
     # Verify deleted record is gone
     resp = await client.get(f"/api/v1/history/{id2}", headers=headers_admin)
     assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_export_history_unauthenticated(client: AsyncClient) -> None:
+    """Verify that export endpoint returns 401 Unauthorized when unauthenticated."""
+    resp = await client.get("/api/v1/history/export")
+    assert resp.status_code == 401
+    assert resp.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+@pytest.mark.anyio
+async def test_export_history_success_and_filtering(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Verify user conversion history export, including filtering and CSV format."""
+    # 1. Setup users
+    user_a_token = await create_user_and_get_token(
+        client, "usera_exp@example.com", "password123"
+    )
+    user_b_token = await create_user_and_get_token(
+        client, "userb_exp@example.com", "password123"
+    )
+
+    headers_a = {"Authorization": f"Bearer {user_a_token}"}
+    headers_b = {"Authorization": f"Bearer {user_b_token}"}
+
+    # Seed rates
+    rate_eur = CurrencyRate(base_currency="USD", target_currency="EUR", rate=0.9)
+    rate_gbp = CurrencyRate(base_currency="USD", target_currency="GBP", rate=0.8)
+    db_session.add_all([rate_eur, rate_gbp])
+    await db_session.flush()
+
+    # User A performs 3 conversions
+    await client.get(
+        "/api/v1/currencies/convert?from=USD&to=EUR&amount=100", headers=headers_a
+    )
+    await client.get(
+        "/api/v1/currencies/convert?from=USD&to=GBP&amount=200", headers=headers_a
+    )
+    await client.get(
+        "/api/v1/currencies/convert?from=USD&to=EUR&amount=50", headers=headers_a
+    )
+
+    # User B performs 1 conversion
+    await client.get(
+        "/api/v1/currencies/convert?from=USD&to=EUR&amount=500", headers=headers_b
+    )
+
+    # 2. Export User A history
+    resp = await client.get("/api/v1/history/export", headers=headers_a)
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "text/csv; charset=utf-8"
+    assert (
+        'attachment; filename="conversion_history.csv"'
+        in resp.headers["content-disposition"]
+    )
+
+    content = resp.text
+    reader = csv.reader(io.StringIO(content))
+    rows = list(reader)
+
+    # Check headers
+    assert rows[0] == ["Date", "Currency Pair", "Amount", "Result"]
+    # Check data rows: User A should have 3 rows plus 1 header row (4 total)
+    assert len(rows) == 4
+
+    # The returned history is desc by converted_at, so 50 (EUR), 200 (GBP), 100 (EUR)
+    assert rows[1][1] == "USD/EUR"
+    assert float(rows[1][2]) == 50.0
+    assert float(rows[1][3]) == 45.0  # 50 * 0.9
+
+    assert rows[2][1] == "USD/GBP"
+    assert float(rows[2][2]) == 200.0
+    assert float(rows[2][3]) == 160.0  # 200 * 0.8
+
+    assert rows[3][1] == "USD/EUR"
+    assert float(rows[3][2]) == 100.0
+    assert float(rows[3][3]) == 90.0  # 100 * 0.9
+
+    # 3. Export with filtering
+    # Filter by to_currency = GBP
+    resp_filter = await client.get(
+        "/api/v1/history/export?to_currency=GBP", headers=headers_a
+    )
+    assert resp_filter.status_code == 200
+    rows_filter = list(csv.reader(io.StringIO(resp_filter.text)))
+    # Header + 1 record
+    assert len(rows_filter) == 2
+    assert rows_filter[1][1] == "USD/GBP"
+    assert float(rows_filter[1][2]) == 200.0
+
+
+@pytest.mark.anyio
+async def test_admin_export_global_and_user_filter(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Verify that admins can export all history and filter by user_id."""
+    user_token = await create_user_and_get_token(
+        client, "user_exp_adm@example.com", "password123"
+    )
+    admin_token = await create_admin_and_get_token(
+        client, db_session, "admin_exp_adm@example.com", "admin123"
+    )
+
+    headers_user = {"Authorization": f"Bearer {user_token}"}
+    headers_admin = {"Authorization": f"Bearer {admin_token}"}
+
+    # Perform conversions
+    await client.get(
+        "/api/v1/currencies/convert?from=USD&to=USD&amount=10",
+        headers=headers_user,
+    )
+    await client.get(
+        "/api/v1/currencies/convert?from=USD&to=USD&amount=20",
+        headers=headers_admin,
+    )
+
+    # Get user ID
+    stmt = select(User).where(User.email == "user_exp_adm@example.com")
+    result = await db_session.execute(stmt)
+    user_obj = result.scalar_one()
+
+    # Admin exports global history (should see both user and admin conversions)
+    resp = await client.get("/api/v1/history/export", headers=headers_admin)
+    assert resp.status_code == 200
+    rows = list(csv.reader(io.StringIO(resp.text)))
+    # Header + 2 conversions = 3 rows
+    assert len(rows) == 3
+
+    # Admin exports filtered by user ID
+    resp_user = await client.get(
+        f"/api/v1/history/export?user_id={user_obj.id}", headers=headers_admin
+    )
+    assert resp_user.status_code == 200
+    rows_user = list(csv.reader(io.StringIO(resp_user.text)))
+    # Header + 1 conversion = 2 rows
+    assert len(rows_user) == 2
+    assert float(rows_user[1][2]) == 10.0
