@@ -10,6 +10,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import logger, setup_logging
 from app.core.middleware import RequestLoggingAndIdMiddleware, SecurityHeadersMiddleware
 from app.core.redis import redis_manager
+from app.modules.currency.providers.http_client import http_client
 from app.modules.auth.router import router as auth_router
 from app.modules.currency.analytics_router import router as analytics_router
 from app.modules.currency.history_router import router as history_router
@@ -61,10 +62,9 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except asyncio.CancelledError:
         pass
 
-    # 4. Graceful Shutdown: disconnect cache
+    # 4. Graceful Shutdown: disconnect cache and HTTP clients
     await redis_manager.close_pool()
-
-    logger.info("Application shutdown complete.")
+    await http_client.close()
 
     logger.info("Application shutdown complete.")
 

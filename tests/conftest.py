@@ -73,6 +73,48 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture(autouse=True)
+def mock_exchange_rate_provider(monkeypatch) -> None:
+    """Mock the exchange rate provider factory for all tests to prevent real HTTP calls."""
+    from app.modules.currency.providers.base import BaseExchangeRateProvider
+
+    class MockProvider(BaseExchangeRateProvider):
+        async def get_latest_rates(self, base: str, symbols: list[str] | None = None) -> dict[str, float]:
+            return {}
+
+        async def get_historical_rates(self, date: str, base: str, symbols: list[str] | None = None) -> dict[str, float]:
+            return {}
+
+        async def convert(self, from_currency: str, to_currency: str, amount: float, date: str | None = None) -> dict:
+            raise Exception("Mock conversion rate not found")
+
+        async def get_timeseries(self, start_date: str, end_date: str, base: str, symbols: list[str] | None = None) -> dict[str, dict[str, float]]:
+            return {}
+
+        async def get_supported_currencies(self) -> dict[str, str]:
+            return {
+                "USD": "United States Dollar",
+                "EUR": "Euro",
+                "GBP": "British Pound Sterling",
+                "JPY": "Japanese Yen",
+                "CAD": "Canadian Dollar",
+                "ETB": "Ethiopian Birr",
+            }
+
+    monkeypatch.setattr(
+        "app.modules.currency.providers.get_exchange_rate_provider",
+        lambda: MockProvider(),
+    )
+    monkeypatch.setattr(
+        "app.modules.currency.services.get_exchange_rate_provider",
+        lambda: MockProvider(),
+    )
+    monkeypatch.setattr(
+        "app.modules.currency.tasks.get_exchange_rate_provider",
+        lambda: MockProvider(),
+    )
+
+
+@pytest.fixture(autouse=True)
 def mock_celery_delay(monkeypatch) -> None:
     """Monkeypatch Celery task .delay methods to run tasks immediately and synchronously."""
     from app.modules.notifications.tasks import (

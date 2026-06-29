@@ -3,7 +3,7 @@ import io
 import json
 import re
 from collections.abc import AsyncGenerator
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from redis.asyncio import Redis
 from sqlalchemy import func, select
@@ -23,6 +23,7 @@ from app.modules.currency.models import (
     CurrencyRateHistory,
 )
 from app.modules.currency.websocket import ws_manager
+from app.modules.currency.providers import get_exchange_rate_provider
 
 
 def _get_cache_key(base: str, target: str) -> str:
@@ -35,7 +36,8 @@ async def get_rate(
     """Retrieve exchange rate for a currency pair, leveraging Redis caching.
 
     Checks the cache first. On miss, it queries PostgreSQL, populates the cache,
-    and returns the record.
+    and returns the record. If the database also misses, fetches from the
+    external provider and updates cache and database.
     """
     base_upper, target_upper = base.upper(), target.upper()
     cache_key = _get_cache_key(base_upper, target_upper)
@@ -72,14 +74,36 @@ async def get_rate(
     if db_rate:
         # Populate Cache asynchronously
         try:
-            # Cache for 10 minutes (600 seconds)
+            # Cache for configured TTL
             await redis.setex(
-                cache_key, settings.CACHE_EXPIRE_SECONDS, str(float(db_rate.rate))
+                cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, str(float(db_rate.rate))
             )
         except Exception as exc:
             logger.error("Failed to update Redis cache", error=str(exc))
+        return db_rate
 
-    return db_rate
+    # DB Miss - fetch from external provider dynamically
+    logger.info(
+        "DB miss for currency rate. Fetching from external provider...",
+        pair=f"{base_upper}{target_upper}",
+    )
+    try:
+        provider = get_exchange_rate_provider()
+        rates = await provider.get_latest_rates(base=base_upper, symbols=[target_upper])
+        if target_upper in rates:
+            rate_val = rates[target_upper]
+            # Save new rate to DB and cache via update_or_create_rate (updates cache and broadcasts WebSockets)
+            db_rate = await update_or_create_rate(db, redis, base_upper, target_upper, rate_val)
+            return db_rate
+    except Exception as exc:
+        logger.error(
+            "Failed to fetch rate from external provider on cache/DB miss",
+            base=base_upper,
+            target=target_upper,
+            error=str(exc),
+        )
+
+    return None
 
 
 async def update_or_create_rate(
@@ -125,7 +149,7 @@ async def update_or_create_rate(
 
     # Refresh Redis Cache and invalidate trends
     try:
-        await redis.setex(cache_key, settings.CACHE_EXPIRE_SECONDS, str(rate))
+        await redis.setex(cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, str(rate))
         # Invalidate trend caches in Redis for this pair
         pattern = f"analytics:trends:{base_upper}:{target_upper}:*"
         keys = await redis.keys(pattern)
@@ -191,6 +215,7 @@ async def convert_currency(
     - Direct pair (from_currency -> to_currency)
     - Inverse pair (to_currency -> from_currency)
     - Cross-rate via a common base (e.g., USD or EUR)
+    - Caching and external provider dynamic lookup.
     """
     from_upper = from_currency.upper()
     to_upper = to_currency.upper()
@@ -206,49 +231,91 @@ async def convert_currency(
             message="Conversion amount must be greater than zero."
         )
 
-    # 2. Get Conversion Rate
-    if from_upper == to_upper:
-        rate = 1.0
-    else:
-        # Check direct rate
-        direct_rate = await get_rate(db, redis, from_upper, to_upper)
-        if direct_rate:
-            rate = float(direct_rate.rate)
+    # Validate currencies against supported list from provider
+    supported = await get_supported_currencies(redis)
+    if from_upper not in supported or to_upper not in supported:
+        raise BadRequestException(
+            message=f"One or both currency codes ({from_upper}, {to_upper}) are not supported."
+        )
+
+    # 2. Check Conversion Cache
+    cache_key = f"conversion:{from_upper}:{to_upper}:{amount}"
+    rate = None
+    result = None
+
+    try:
+        cached_val = await redis.get(cache_key)
+        if cached_val:
+            logger.info("Cache hit for currency conversion details", key=cache_key)
+            cached_data = json.loads(cached_val)
+            rate = float(cached_data["rate"])
+            result = float(cached_data["result"])
+    except Exception as exc:
+        logger.error("Failed to query Redis cache for conversion", error=str(exc))
+
+    if rate is None or result is None:
+        # 3. Get Conversion Rate
+        if from_upper == to_upper:
+            rate = 1.0
         else:
-            # Check inverse rate
-            inverse_rate = await get_rate(db, redis, to_upper, from_upper)
-            if inverse_rate and float(inverse_rate.rate) > 0:
-                rate = 1.0 / float(inverse_rate.rate)
+            # Check direct rate
+            direct_rate = await get_rate(db, redis, from_upper, to_upper)
+            if direct_rate:
+                rate = float(direct_rate.rate)
             else:
-                # Try cross-rates via USD or EUR
-                rate = None
-                for base in ["USD", "EUR"]:
-                    rate_base_to_from = await get_rate(db, redis, base, from_upper)
-                    rate_base_to_to = await get_rate(db, redis, base, to_upper)
-                    if rate_base_to_from and rate_base_to_to:
-                        r1 = float(rate_base_to_from.rate)
-                        r2 = float(rate_base_to_to.rate)
-                        if r1 > 0:
-                            rate = r2 / r1
+                # Check inverse rate
+                inverse_rate = await get_rate(db, redis, to_upper, from_upper)
+                if inverse_rate and float(inverse_rate.rate) > 0:
+                    rate = 1.0 / float(inverse_rate.rate)
+                else:
+                    # Try cross-rates via USD or EUR
+                    rate = None
+                    for base in ["USD", "EUR"]:
+                        rate_base_to_from = await get_rate(db, redis, base, from_upper)
+                        rate_base_to_to = await get_rate(db, redis, base, to_upper)
+                        if rate_base_to_from and rate_base_to_to:
+                            r1 = float(rate_base_to_from.rate)
+                            r2 = float(rate_base_to_to.rate)
+                            if r1 > 0:
+                                rate = r2 / r1
+                                break
+                        # Also try from -> base, base -> to
+                        rate_from_to_base = await get_rate(db, redis, from_upper, base)
+                        if rate_from_to_base and rate_base_to_to:
+                            r1 = float(rate_from_to_base.rate)
+                            r2 = float(rate_base_to_to.rate)
+                            rate = r1 * r2
                             break
-                    # Also try from -> base, base -> to
-                    rate_from_to_base = await get_rate(db, redis, from_upper, base)
-                    if rate_from_to_base and rate_base_to_to:
-                        r1 = float(rate_from_to_base.rate)
-                        r2 = float(rate_base_to_to.rate)
-                        rate = r1 * r2
-                        break
 
-                if rate is None:
-                    raise NotFoundException(
-                        message=(
-                            f"Exchange rate for pair {from_upper}/{to_upper} "
-                            "was not found."
-                        )
-                    )
+                    if rate is None:
+                        # Call provider convert fallback/direct
+                        try:
+                            provider = get_exchange_rate_provider()
+                            conv_data = await provider.convert(from_upper, to_upper, amount)
+                            rate = float(conv_data["rate"])
+                            result = float(conv_data["result"])
+                        except Exception as exc:
+                            logger.error("External provider conversion failed", error=str(exc))
+                            raise NotFoundException(
+                                message=(
+                                    f"Exchange rate for pair {from_upper}/{to_upper} "
+                                    "was not found."
+                                )
+                            )
 
-    # 3. Calculate conversion
-    result = amount * rate
+        if result is None:
+            # Calculate conversion
+            result = amount * rate
+
+        # Cache conversion result
+        try:
+            await redis.setex(
+                cache_key,
+                settings.EXCHANGE_RATE_API_CACHE_TTL,
+                json.dumps({"rate": rate, "result": result}),
+            )
+        except Exception as exc:
+            logger.error("Failed to cache conversion result", error=str(exc))
 
     # 4. Save conversion history
     conversion = CurrencyConversion(
@@ -593,6 +660,66 @@ async def get_analytics(db: AsyncSession, redis: Redis) -> dict:
     return analytics_data
 
 
+async def backfill_historical_rates(
+    db: AsyncSession, base: str, target: str, start_date: datetime, end_date: datetime
+) -> None:
+    """Query provider for timeseries/historical rates and backfill the DB history."""
+    try:
+        provider = get_exchange_rate_provider()
+        
+        start_str = start_date.date().isoformat()
+        end_str = end_date.date().isoformat()
+        
+        logger.info(
+            "Backfilling historical rates from external provider",
+            base=base,
+            target=target,
+            start_date=start_str,
+            end_date=end_str,
+        )
+        
+        # Fetch timeseries data
+        ts_data = await provider.get_timeseries(
+            start_date=start_str,
+            end_date=end_str,
+            base=base,
+            symbols=[target],
+        )
+        
+        # Insert records into DB
+        for date_str, rates in ts_data.items():
+            if target in rates:
+                rate_val = rates[target]
+                timestamp = datetime.combine(
+                    datetime.fromisoformat(date_str).date(),
+                    datetime.min.time(),
+                )
+                
+                # Check if this record already exists to avoid duplicates
+                check_stmt = select(CurrencyRateHistory).where(
+                    CurrencyRateHistory.base_currency == base,
+                    CurrencyRateHistory.target_currency == target,
+                    CurrencyRateHistory.timestamp == timestamp,
+                )
+                existing = (await db.execute(check_stmt)).scalar_one_or_none()
+                if not existing:
+                    db_history = CurrencyRateHistory(
+                        base_currency=base,
+                        target_currency=target,
+                        rate=rate_val,
+                        timestamp=timestamp,
+                    )
+                    db.add(db_history)
+        await db.flush()
+    except Exception as exc:
+        logger.error(
+            "Failed to backfill historical rates from provider",
+            base=base,
+            target=target,
+            error=str(exc),
+        )
+
+
 async def get_rate_trends(
     db: AsyncSession,
     redis: Redis,
@@ -607,7 +734,7 @@ async def get_rate_trends(
 
     Leverages Redis caching. If cache hits, returns the cached trend payload.
     Otherwise queries the PostgreSQL database, computes statistics, paginates
-    the trends, and caches the result.
+    the trends, and caches the result. Backfills history from the provider on DB miss.
     """
     base_upper = base.upper()
     target_upper = target.upper()
@@ -658,6 +785,17 @@ async def get_rate_trends(
     stats_res = await db.execute(stats_stmt)
     avg_rate, min_rate, max_rate, total = stats_res.one()
     total = total or 0
+
+    # Backfill history if total count in DB is zero
+    if total == 0:
+        backfill_start = start_date or (datetime.utcnow() - timedelta(days=30))
+        backfill_end = end_date or datetime.utcnow()
+        await backfill_historical_rates(db, base_upper, target_upper, backfill_start, backfill_end)
+        
+        # Re-execute stats query
+        stats_res = await db.execute(stats_stmt)
+        avg_rate, min_rate, max_rate, total = stats_res.one()
+        total = total or 0
 
     if total == 0:
         empty_res = {
@@ -739,10 +877,77 @@ async def get_rate_trends(
     # 3. Cache the result in Redis
     try:
         await redis.setex(
-            cache_key, settings.CACHE_EXPIRE_SECONDS, json.dumps(result_data)
+            cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, json.dumps(result_data)
         )
         logger.info("Successfully populated Redis cache for rate trends", key=cache_key)
     except Exception as exc:
         logger.error("Failed to populate Redis cache for rate trends", error=str(exc))
 
     return result_data
+
+
+async def get_supported_currencies(redis: Redis) -> list[str]:
+    """Retrieve list of supported currency codes, using Redis caching."""
+    cache_key = "currencies:supported"
+    try:
+        cached = await redis.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception as exc:
+        logger.error("Failed to query Redis for supported currencies", error=str(exc))
+
+    # Fetch from provider
+    try:
+        provider = get_exchange_rate_provider()
+        symbols_map = await provider.get_supported_currencies()
+        supported = sorted(list(symbols_map.keys()))
+
+        # Cache in Redis
+        try:
+            await redis.setex(cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, json.dumps(supported))
+        except Exception as exc:
+            logger.error("Failed to cache supported currencies in Redis", error=str(exc))
+        return supported
+    except Exception as exc:
+        logger.error("Failed to fetch supported currencies from provider", error=str(exc))
+        # Fallback list of major currencies if provider is down
+        fallback = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "ETB"]
+        return sorted(fallback)
+
+
+async def get_currency_symbols(redis: Redis) -> dict[str, str]:
+    """Retrieve currency symbols/descriptions, using Redis caching."""
+    cache_key = "currencies:symbols"
+    try:
+        cached = await redis.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception as exc:
+        logger.error("Failed to query Redis for currency symbols", error=str(exc))
+
+    # Fetch from provider
+    try:
+        provider = get_exchange_rate_provider()
+        symbols_map = await provider.get_supported_currencies()
+
+        # Cache in Redis
+        try:
+            await redis.setex(cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, json.dumps(symbols_map))
+        except Exception as exc:
+            logger.error("Failed to cache currency symbols in Redis", error=str(exc))
+        return symbols_map
+    except Exception as exc:
+        logger.error("Failed to fetch currency symbols from provider", error=str(exc))
+        # Fallback dict of major currencies if provider is down
+        fallback = {
+            "USD": "United States Dollar",
+            "EUR": "Euro",
+            "GBP": "British Pound Sterling",
+            "JPY": "Japanese Yen",
+            "CAD": "Canadian Dollar",
+            "AUD": "Australian Dollar",
+            "CHF": "Swiss Franc",
+            "CNY": "Chinese Yuan",
+            "ETB": "Ethiopian Birr",
+        }
+        return fallback

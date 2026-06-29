@@ -77,8 +77,11 @@ def sync_exchange_rate_celery_task(self, base: str, target: str, rate: float) ->
     retry_backoff=True,
 )
 def update_rates_task(self) -> None:
-    """Periodic task to update and fluctuate exchange rates and trigger alert checks."""
-    logger.info("Executing update_rates_task to update/fluctuate exchange rates.")
+    """Periodic task to synchronize rates from the external exchange rate provider.
+
+    Falls back to a slight random fluctuation if the provider is unavailable or fails.
+    """
+    logger.info("Executing update_rates_task to synchronize/fluctuate exchange rates.")
 
     async def _run():
         async with get_db_context() as db:
@@ -107,19 +110,49 @@ def update_rates_task(self) -> None:
                 logger.info("Default currency rates seeded successfully.")
                 return
 
-            for rate in rates:
-                # Fluctuate rate slightly (between -0.5% and +0.5%)
-                change_percent = random.uniform(-0.005, 0.005)
-                new_rate = float(rate.rate) * (1 + change_percent)
-                new_rate = round(new_rate, 6)
+            # Group rates by base currency to make fewer external API calls
+            base_groups = {}
+            for r in rates:
+                base_groups.setdefault(r.base_currency, []).append(r.target_currency)
 
-                await services.update_or_create_rate(
-                    db=db,
-                    redis=redis_client,
-                    base=rate.base_currency,
-                    target=rate.target_currency,
-                    rate=new_rate,
-                )
+            from app.modules.currency.providers import get_exchange_rate_provider
+            provider = get_exchange_rate_provider()
+
+            for base_curr, target_currs in base_groups.items():
+                try:
+                    logger.info("Fetching latest rates from provider in background task", base=base_curr, targets=target_currs)
+                    latest_rates = await provider.get_latest_rates(base=base_curr, symbols=target_currs)
+                    for target_curr in target_currs:
+                        if target_curr in latest_rates:
+                            rate_val = latest_rates[target_curr]
+                            await services.update_or_create_rate(
+                                db=db,
+                                redis=redis_client,
+                                base=base_curr,
+                                target=target_curr,
+                                rate=rate_val,
+                            )
+                except Exception as exc:
+                    logger.warn(
+                        "Provider failed to fetch rates for background update. Applying fluctuation fallback...",
+                        base=base_curr,
+                        targets=target_currs,
+                        error=str(exc),
+                    )
+                    # Fallback to random fluctuation (-0.5% to +0.5%)
+                    for rate in rates:
+                        if rate.base_currency == base_curr and rate.target_currency in target_currs:
+                            change_percent = random.uniform(-0.005, 0.005)
+                            new_rate = float(rate.rate) * (1 + change_percent)
+                            new_rate = round(new_rate, 6)
+
+                            await services.update_or_create_rate(
+                                db=db,
+                                redis=redis_client,
+                                base=rate.base_currency,
+                                target=rate.target_currency,
+                                rate=new_rate,
+                            )
 
     try:
         run_async(_run())
@@ -137,7 +170,7 @@ def update_rates_task(self) -> None:
     retry_backoff=True,
 )
 def refresh_cache_task(self) -> None:
-    """Periodic task to refresh rates and analytics in Redis to keep the cache warm."""
+    """Periodic task to refresh rates, symbols, supported list, and analytics in Redis to keep the cache warm."""
     logger.info("Executing refresh_cache_task to keep Redis warm.")
 
     async def _run():
@@ -150,10 +183,14 @@ def refresh_cache_task(self) -> None:
                     rate.base_currency, rate.target_currency
                 )
                 await redis_client.setex(
-                    cache_key, settings.CACHE_EXPIRE_SECONDS, str(float(rate.rate))
+                    cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, str(float(rate.rate))
                 )
 
-            # 2. Warm global analytics cache
+            # 2. Warm supported currencies and symbols cache
+            await services.get_supported_currencies(redis_client)
+            await services.get_currency_symbols(redis_client)
+
+            # 3. Warm global analytics cache
             await services.get_analytics(db, redis_client)
 
     try:

@@ -80,6 +80,15 @@ class Settings(BaseSettings):
     CACHE_EXPIRE_SECONDS: int = 600
 
     # --------------------------------------------------------------------------
+    # Exchange Rate API Configuration (APILayer)
+    # --------------------------------------------------------------------------
+    EXCHANGE_RATE_API_URL: str = "https://api.exchangeratesapi.io/v1/"
+    EXCHANGE_RATE_API_KEY: str = ""
+    EXCHANGE_RATE_API_TIMEOUT: int = 10
+    EXCHANGE_RATE_API_RETRY_COUNT: int = 3
+    EXCHANGE_RATE_API_CACHE_TTL: int = 600
+
+    # --------------------------------------------------------------------------
     # Computed Properties
     # --------------------------------------------------------------------------
     @computed_field

@@ -63,6 +63,22 @@ async def get_currency_analytics(
     return await services.get_analytics(db, redis)
 
 
+@router.get("/supported", response_model=list[str])
+async def list_supported_currencies(
+    redis: Redis = Depends(get_redis),
+) -> list[str]:
+    """Retrieve all supported currency codes from cache/provider."""
+    return await services.get_supported_currencies(redis)
+
+
+@router.get("/symbols", response_model=dict[str, str])
+async def get_currency_symbols(
+    redis: Redis = Depends(get_redis),
+) -> dict[str, str]:
+    """Retrieve currency code to symbol name mapping."""
+    return await services.get_currency_symbols(redis)
+
+
 @router.get("/rates", response_model=list[schemas.CurrencyRateOut])
 async def list_all_rates(
     db: AsyncSession = Depends(get_db),
