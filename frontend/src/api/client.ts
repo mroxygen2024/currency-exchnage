@@ -163,7 +163,7 @@ export async function apiRequest<T>(
             console.error('API Response validation failed:', {
               url: config.url,
               method: config.method,
-              errors: zodError instanceof z.ZodError ? zodError.errors : zodError,
+              errors: zodError instanceof z.ZodError ? zodError.issues : zodError,
               data,
             });
           }
