@@ -10,11 +10,30 @@ export const userOutSchema = z.object({
   is_deleted: z.boolean(),
 });
 
-export const tokenSchema = z.object({
-  access_token: z.string(),
-  token_type: z.string().default('bearer'),
-  refresh_token: z.string(),
+const tokenResponseInputSchema = z.object({
+  access_token: z.string().optional(),
+  accessToken: z.string().optional(),
+  token: z.string().optional(),
+  refresh_token: z.string().optional(),
+  refreshToken: z.string().optional(),
+  token_type: z.string().optional(),
+  tokenType: z.string().optional(),
 });
+
+export const tokenSchema = tokenResponseInputSchema
+  .refine(
+    (value) =>
+      Boolean(value.access_token ?? value.accessToken ?? value.token) &&
+      Boolean(value.refresh_token ?? value.refreshToken),
+    {
+      message: 'Invalid token payload.',
+    }
+  )
+  .transform((value) => ({
+    access_token: value.access_token ?? value.accessToken ?? value.token ?? '',
+    refresh_token: value.refresh_token ?? value.refreshToken ?? '',
+    token_type: value.token_type ?? value.tokenType ?? 'bearer',
+  }));
 
 export const tokenPayloadSchema = z.object({
   sub: z.string().nullable().optional(),

@@ -91,6 +91,7 @@ export const authApi = {
           url: '/auth/logout',
           method: 'POST',
           data: { refresh_token: refreshToken },
+          skipAuth: true,
         });
       } finally {
         // Always clear tokens locally even if the server revocation fails (e.g. token already expired)

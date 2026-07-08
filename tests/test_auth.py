@@ -34,6 +34,14 @@ async def test_auth_registration_and_login_flow(client: AsyncClient) -> None:
 
 
 @pytest.mark.anyio
+async def test_auth_me_requires_bearer_auth(client: AsyncClient) -> None:
+    """Verify that the protected /me endpoint rejects anonymous requests."""
+    me_resp = await client.get("/api/v1/auth/me")
+    assert me_resp.status_code == 401
+    assert me_resp.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+@pytest.mark.anyio
 async def test_registration_duplicate_email(client: AsyncClient) -> None:
     """Verify that registering with an already existing email returns
     a 400 Bad Request.

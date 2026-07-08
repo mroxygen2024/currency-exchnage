@@ -2,6 +2,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosR
 import { z } from 'zod';
 import { API_CONFIG } from './config';
 import { tokenStorage } from './storage';
+import { tokenSchema } from './schemas/auth';
 import { ApiError, parseApiError } from './errors';
 
 // Extend AxiosRequestConfig to include custom options
@@ -72,16 +73,18 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Check if error is 401 and the request was not a retry and was not an auth endpoint
+    // Check if error is 401 and the request was not a retry and was not one of the auth mutation endpoints
     const isUnauthorized = error.response?.status === 401;
-    const isAuthEndpoint = originalRequest.url?.includes('/auth/');
-    
-    if (isUnauthorized && !originalRequest._retry && !isAuthEndpoint) {
+    const authSkipPaths = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'];
+    const isAuthMutationEndpoint = authSkipPaths.some((path) => originalRequest.url?.includes(path));
+
+    if (isUnauthorized && !originalRequest._retry && !isAuthMutationEndpoint) {
       if (isRefreshing) {
         // Queue the request until refresh finishes
         return new Promise((resolve, reject) => {
           failedQueue.push({
             resolve: (token: string) => {
+              originalRequest.headers = originalRequest.headers ?? {};
               originalRequest.headers.Authorization = `Bearer ${token}`;
               resolve(axiosInstance(originalRequest));
             },
@@ -96,7 +99,7 @@ axiosInstance.interceptors.response.use(
       isRefreshing = true;
 
       const refreshToken = tokenStorage.getRefreshToken();
-      
+
       if (!refreshToken) {
         isRefreshing = false;
         tokenStorage.clearTokens();
@@ -107,18 +110,19 @@ axiosInstance.interceptors.response.use(
 
       try {
         // Request token rotation
-        const response = await axios.post(
-          `${API_CONFIG.BASE_URL}/auth/refresh`,
+        const response = await axiosInstance.post(
+          '/auth/refresh',
           { refresh_token: refreshToken },
           { skipAuth: true }
         );
 
-        const { access_token, refresh_token: newRefreshToken } = response.data;
+        const { access_token, refresh_token: newRefreshToken } = tokenSchema.parse(response.data);
         
         tokenStorage.setTokens(access_token, newRefreshToken);
         
         // Update authorization header
         axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+        originalRequest.headers = originalRequest.headers ?? {};
         originalRequest.headers.Authorization = `Bearer ${access_token}`;
         
         processQueue(null, access_token);
