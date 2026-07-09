@@ -133,14 +133,14 @@ describe('DashboardOverview', () => {
       data: null,
       isLoading: false,
       error: null,
-    } as any));
+    } as unknown as ReturnType<typeof hooks.useCurrencyConversion>));
 
     // Default useCurrencyRate implementation
     vi.mocked(hooks.useCurrencyRate).mockImplementation(() => ({
       data: { rate: 0.92 },
       isLoading: false,
       error: null,
-    } as any));
+    } as unknown as ReturnType<typeof hooks.useCurrencyRate>));
 
     queryClient = new QueryClient({
       defaultOptions: {
@@ -225,7 +225,7 @@ describe('DashboardOverview', () => {
         } : null,
         isLoading: false,
         error: null,
-      } as any;
+      } as unknown as ReturnType<typeof hooks.useCurrencyConversion>;
     });
 
     renderComponent();

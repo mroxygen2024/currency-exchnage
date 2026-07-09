@@ -63,13 +63,13 @@ axiosInstance.interceptors.request.use(
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
-  reject: (err: any) => void;
+  reject: (err: unknown) => void;
 }> = [];
 
 /**
  * Processes the queue of pending requests that failed due to 401.
  */
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
@@ -123,7 +123,7 @@ axiosInstance.interceptors.response.use(
               setAuthorizationHeader(originalRequest.headers, token);
               resolve(axiosInstance(originalRequest));
             },
-            reject: (err: any) => {
+            reject: (err: unknown) => {
               reject(err);
             },
           });

@@ -42,7 +42,7 @@ const resolveAxiosErrorMessage = (error: AxiosError, status: number | null, resp
 } => {
   let message = 'An unexpected network error occurred.';
   let code: string | null = null;
-  let validationErrors: ApiValidationError[] | null = null;
+  const validationErrors: ApiValidationError[] | null = null;
 
   if (error.code === 'ECONNABORTED') {
     message = 'Request timed out. Please check your connection and try again.';

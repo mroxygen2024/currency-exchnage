@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { testUser } from './fixtures/test-data';
 
 test.describe('Authentication Flow', () => {
   test.beforeEach(async ({ page }) => {

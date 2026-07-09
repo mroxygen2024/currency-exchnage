@@ -74,7 +74,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    void refreshSession();
+    const accessToken = tokenStorage.getAccessToken();
+    const refreshToken = tokenStorage.getRefreshToken();
+
+    if (!accessToken || !refreshToken) {
+      queueMicrotask(() => {
+        clearSession();
+        setIsLoading(false);
+      });
+      return;
+    }
+
+    authApi.getMe().then((profile) => {
+      setUser(profile);
+      setError(null);
+    }).catch((errorValue) => {
+      clearSession();
+      setError(getAuthErrorMessage(errorValue));
+    }).finally(() => {
+      setIsLoading(false);
+    });
 
     const handleSessionExpired = () => {
       clearSession();
@@ -115,6 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const clearError = () => setError(null);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -125,14 +146,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       refreshSession,
-      clearError: () => setError(null),
+      clearError,
     }),
-    [error, isLoading, login, logout, refreshSession, register, user]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [error, isLoading, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
 

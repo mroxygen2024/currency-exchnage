@@ -72,9 +72,13 @@ export function DashboardLayout() {
   }, []);
 
   // Close mobile sidebar on route change
+  const prevLocationRef = useRef(location.pathname);
   useEffect(() => {
-    setIsMobileSidebarOpen(false);
-    closeAllDropdowns();
+    if (prevLocationRef.current !== location.pathname) {
+      prevLocationRef.current = location.pathname;
+      setIsMobileSidebarOpen(false);
+      closeAllDropdowns();
+    }
   }, [location, closeAllDropdowns]);
 
   // Trap focus inside mobile sidebar when open

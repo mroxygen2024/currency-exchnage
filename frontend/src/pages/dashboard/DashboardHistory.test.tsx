@@ -75,12 +75,12 @@ describe('DashboardHistory', () => {
       data: mockPaginatedData,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown as ReturnType<typeof historyHooks.useHistoryList>);
 
     vi.mocked(historyHooks.useDeleteHistoryRecord).mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
-    } as any);
+    } as unknown as ReturnType<typeof historyHooks.useDeleteHistoryRecord>);
   });
 
   const renderComponent = () =>
@@ -163,7 +163,7 @@ describe('DashboardHistory', () => {
       data: undefined,
       isLoading: true,
       error: null,
-    } as any);
+    } as unknown as ReturnType<typeof historyHooks.useHistoryList>);
 
     renderComponent();
 
@@ -176,7 +176,7 @@ describe('DashboardHistory', () => {
       data: undefined,
       isLoading: false,
       error: new Error('Network error'),
-    } as any);
+    } as unknown as ReturnType<typeof historyHooks.useHistoryList>);
 
     renderComponent();
 
@@ -188,7 +188,7 @@ describe('DashboardHistory', () => {
       data: { items: [], total: 0, page: 1, limit: 6, pages: 0 },
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown as ReturnType<typeof historyHooks.useHistoryList>);
 
     renderComponent();
 

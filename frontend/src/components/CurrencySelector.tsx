@@ -13,6 +13,7 @@ export interface CurrencySelectorProps {
 }
 
 // Map common currency codes to flag emojis for visual flair
+// eslint-disable-next-line react-refresh/only-export-components
 export function getCurrencyFlag(currencyCode: string): string {
   const flags: Record<string, string> = {
     USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', JPY: '🇯🇵', AUD: '🇦🇺',

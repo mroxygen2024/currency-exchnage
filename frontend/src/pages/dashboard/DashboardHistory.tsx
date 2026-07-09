@@ -109,7 +109,7 @@ export function DashboardHistory() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       toast.success('Export complete', 'CSV file has been downloaded.');
-    } catch (err) {
+    } catch {
       toast.error('Export failed', 'Unable to export history. Please try again.');
     }
   };

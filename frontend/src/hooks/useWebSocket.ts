@@ -44,15 +44,19 @@ export function useWebSocket(
   const reconnectCountRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const shouldReconnectRef = useRef(false);
 
   const onMessageRef = useRef(options.onMessage);
-  onMessageRef.current = options.onMessage;
   const onOpenRef = useRef(options.onOpen);
-  onOpenRef.current = options.onOpen;
   const onCloseRef = useRef(options.onClose);
-  onCloseRef.current = options.onClose;
   const onErrorRef = useRef(options.onError);
-  onErrorRef.current = options.onError;
+
+  useEffect(() => {
+    onMessageRef.current = options.onMessage;
+    onOpenRef.current = options.onOpen;
+    onCloseRef.current = options.onClose;
+    onErrorRef.current = options.onError;
+  });
 
   const cleanup = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -99,9 +103,7 @@ export function useWebSocket(
           reconnectCountRef.current < reconnectAttempts
         ) {
           reconnectCountRef.current += 1;
-          reconnectTimerRef.current = setTimeout(() => {
-            if (mountedRef.current) connect();
-          }, reconnectInterval);
+          shouldReconnectRef.current = true;
         }
       };
 
@@ -120,7 +122,7 @@ export function useWebSocket(
       if (!mountedRef.current) return;
       setStatus('error');
     }
-  }, [url, enabled, reconnectAttempts, reconnectInterval, autoReconnect, cleanup]);
+  }, [url, enabled, reconnectAttempts, autoReconnect, cleanup]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -130,12 +132,27 @@ export function useWebSocket(
   }, []);
 
   useEffect(() => {
-    connect();
+    queueMicrotask(() => connect());
     return () => {
       reconnectCountRef.current = reconnectAttempts;
       cleanup();
     };
   }, [connect, cleanup, reconnectAttempts]);
+
+  useEffect(() => {
+    if (!shouldReconnectRef.current) return;
+    shouldReconnectRef.current = false;
+
+    reconnectTimerRef.current = setTimeout(() => {
+      if (mountedRef.current) connect();
+    }, reconnectInterval);
+
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+    };
+  }, [connect, reconnectInterval]);
 
   const send = useCallback((data: string | object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
