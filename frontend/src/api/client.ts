@@ -1,9 +1,10 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { z } from 'zod';
 import { API_CONFIG } from './config';
 import { tokenStorage } from './storage';
 import { tokenSchema } from './schemas/auth';
 import { ApiError, parseApiError } from './errors';
+import { dispatchSessionExpiredEvent } from './helpers';
 
 // Extend AxiosRequestConfig to include custom options
 declare module 'axios' {
@@ -26,17 +27,31 @@ const axiosInstance: AxiosInstance = axios.create({
 });
 
 // Request Interceptor: Attach bearer tokens automatically if available
+const setAuthorizationHeader = (
+  headers: InternalAxiosRequestConfig['headers'],
+  token: string
+): void => {
+  if (typeof headers?.set === 'function') {
+    headers.set('Authorization', `Bearer ${token}`);
+    return;
+  }
+
+  if (headers) {
+    (headers as Record<string, string>).Authorization = `Bearer ${token}`;
+  }
+};
+
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Skip attaching Authorization header if explicitly requested (e.g. login/register)
     if (config.skipAuth) {
       return config;
     }
 
     const token = tokenStorage.getAccessToken();
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      setAuthorizationHeader(config.headers, token);
     }
+
     return config;
   },
   (error) => {
@@ -65,18 +80,38 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
+const isAuthMutationRequest = (requestUrl?: string): boolean => {
+  if (!requestUrl) {
+    return false;
+  }
+
+  return ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'].some((path) => requestUrl.includes(path));
+};
+
+const resolveRequestConfig = (error: AxiosError) => error.config as InternalAxiosRequestConfig & {
+  _retry?: boolean;
+  skipAuth?: boolean;
+};
+
+const clearAuthorizationHeader = (): void => {
+  delete axiosInstance.defaults.headers.common.Authorization;
+};
+
 // Response Interceptor: Intercept errors and handle Token Refresh flow
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => {
     return response;
   },
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = resolveRequestConfig(error);
+
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
 
     // Check if error is 401 and the request was not a retry and was not one of the auth mutation endpoints
     const isUnauthorized = error.response?.status === 401;
-    const authSkipPaths = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'];
-    const isAuthMutationEndpoint = authSkipPaths.some((path) => originalRequest.url?.includes(path));
+    const isAuthMutationEndpoint = isAuthMutationRequest(originalRequest.url);
 
     if (isUnauthorized && !originalRequest._retry && !isAuthMutationEndpoint) {
       if (isRefreshing) {
@@ -85,7 +120,7 @@ axiosInstance.interceptors.response.use(
           failedQueue.push({
             resolve: (token: string) => {
               originalRequest.headers = originalRequest.headers ?? {};
-              originalRequest.headers.Authorization = `Bearer ${token}`;
+              setAuthorizationHeader(originalRequest.headers, token);
               resolve(axiosInstance(originalRequest));
             },
             reject: (err: any) => {
@@ -103,8 +138,9 @@ axiosInstance.interceptors.response.use(
       if (!refreshToken) {
         isRefreshing = false;
         tokenStorage.clearTokens();
+        clearAuthorizationHeader();
         // Emit global event to notify the application of session expiration
-        window.dispatchEvent(new CustomEvent('auth:session-expired'));
+        dispatchSessionExpiredEvent();
         return Promise.reject(error);
       }
 
@@ -119,11 +155,8 @@ axiosInstance.interceptors.response.use(
         const { access_token, refresh_token: newRefreshToken } = tokenSchema.parse(response.data);
         
         tokenStorage.setTokens(access_token, newRefreshToken);
-        
-        // Update authorization header
-        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
         originalRequest.headers = originalRequest.headers ?? {};
-        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        setAuthorizationHeader(originalRequest.headers, access_token);
         
         processQueue(null, access_token);
         isRefreshing = false;
@@ -133,7 +166,8 @@ axiosInstance.interceptors.response.use(
         processQueue(refreshError, null);
         isRefreshing = false;
         tokenStorage.clearTokens();
-        window.dispatchEvent(new CustomEvent('auth:session-expired'));
+        clearAuthorizationHeader();
+        dispatchSessionExpiredEvent();
         return Promise.reject(refreshError);
       }
     }
@@ -158,7 +192,7 @@ export async function apiRequest<T>(
     const data = response.data;
 
     // Validate the response data if a Zod schema is provided
-    if (schema) {
+    if (schema && config.responseType !== 'blob' && config.responseType !== 'arraybuffer') {
       if (API_CONFIG.VALIDATE_RESPONSES) {
         try {
           return schema.parse(data);

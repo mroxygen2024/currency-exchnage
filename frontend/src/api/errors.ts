@@ -1,4 +1,4 @@
-import { AxiosError } from 'axios';
+import axios, { AxiosError } from 'axios';
 
 /**
  * Standardized validation error structure from FastAPI (Pydantic validation errors)
@@ -8,6 +8,99 @@ export interface ApiValidationError {
   message: string;
   type: string;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const extractFastApiValidationErrors = (detail: unknown): ApiValidationError[] | null => {
+  if (!Array.isArray(detail)) {
+    return null;
+  }
+
+  return detail
+    .map((error) => {
+      if (!isRecord(error)) {
+        return null;
+      }
+
+      const location = Array.isArray(error.loc) ? error.loc : [];
+      const field = location.length > 0 ? location[location.length - 1] : 'unknown';
+
+      return {
+        field: String(field),
+        message: typeof error.msg === 'string' ? error.msg : 'Invalid value',
+        type: typeof error.type === 'string' ? error.type : 'value_error',
+      };
+    })
+    .filter((error): error is ApiValidationError => error !== null);
+};
+
+const resolveAxiosErrorMessage = (error: AxiosError, status: number | null, responseData: unknown): {
+  message: string;
+  code: string | null;
+  validationErrors: ApiValidationError[] | null;
+} => {
+  let message = 'An unexpected network error occurred.';
+  let code: string | null = null;
+  let validationErrors: ApiValidationError[] | null = null;
+
+  if (error.code === 'ECONNABORTED') {
+    message = 'Request timed out. Please check your connection and try again.';
+    code = 'TIMEOUT';
+  } else if (error.code === 'ERR_NETWORK') {
+    message = 'Network error. Please verify you are connected to the internet and the server is running.';
+    code = 'NETWORK_ERROR';
+  } else if (error.code === 'ERR_CANCELED') {
+    message = 'Request was canceled.';
+    code = 'CANCELED';
+  }
+
+  if (isRecord(responseData)) {
+    const validationDetail = extractFastApiValidationErrors(responseData.detail);
+
+    if (validationDetail) {
+      return {
+        message: 'Validation failed. Please correct the highlighted fields.',
+        code: 'VALIDATION_ERROR',
+        validationErrors: validationDetail,
+      };
+    }
+
+    if (typeof responseData.detail === 'string') {
+      return {
+        message: responseData.detail,
+        code,
+        validationErrors,
+      };
+    }
+
+    if (typeof responseData.message === 'string') {
+      return {
+        message: responseData.message,
+        code,
+        validationErrors,
+      };
+    }
+
+    if (typeof responseData.error === 'string') {
+      return {
+        message: responseData.error,
+        code,
+        validationErrors,
+      };
+    }
+  }
+
+  if (status) {
+    message = `Request failed with status code ${status}`;
+  }
+
+  return {
+    message,
+    code: code || error.code || null,
+    validationErrors,
+  };
+};
 
 /**
  * Custom API Error class that formats and standardizes server and network errors.
@@ -57,54 +150,13 @@ export function parseApiError(error: unknown): ApiError {
     return error;
   }
 
-  if (error && typeof error === 'object' && 'isAxiosError' in error) {
-    const axiosError = error as AxiosError<any>;
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError<unknown>;
     const status = axiosError.response?.status ?? null;
     const responseData = axiosError.response?.data;
-    
-    let message = 'An unexpected network error occurred.';
-    let validationErrors: ApiValidationError[] | null = null;
-    let code: string | null = null;
 
-    if (axiosError.code === 'ECONNABORTED') {
-      message = 'Request timed out. Please check your connection and try again.';
-      code = 'TIMEOUT';
-    } else if (axiosError.code === 'ERR_NETWORK') {
-      message = 'Network error. Please verify you are connected to the internet and the server is running.';
-      code = 'NETWORK_ERROR';
-    }
-
-    if (responseData) {
-      // 1. Check for FastAPI Pydantic detail validation errors
-      if (Array.isArray(responseData.detail)) {
-        message = 'Validation failed. Please correct the highlighted fields.';
-        code = 'VALIDATION_ERROR';
-        validationErrors = responseData.detail.map((err: any) => {
-          // loc can be ["body", "password"] or ["query", "base"]
-          // We extract the field name from the last element of the location array
-          const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : 'unknown';
-          return {
-            field: String(field),
-            message: err.msg || 'Invalid value',
-            type: err.type || 'value_error',
-          };
-        });
-      }
-      // 2. Check for simple string detail message
-      else if (typeof responseData.detail === 'string') {
-        message = responseData.detail;
-      }
-      // 3. Check for specific message property
-      else if (typeof responseData.message === 'string') {
-        message = responseData.message;
-      }
-      // 4. Default error extraction from status
-      else if (status) {
-        message = `Request failed with status code ${status}`;
-      }
-    }
-
-    return new ApiError(message, status, code || axiosError.code || null, validationErrors, error);
+    const resolved = resolveAxiosErrorMessage(axiosError, status, responseData);
+    return new ApiError(resolved.message, status, resolved.code, resolved.validationErrors, error);
   }
 
   // Handle regular native Javascript Errors

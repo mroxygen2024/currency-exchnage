@@ -7,6 +7,7 @@ import {
   CurrencyAnalyticsOut,
   CurrencyTrendsOut,
 } from '../types';
+import { formatDateQueryParams } from '../helpers';
 
 export interface TrendFilterParams {
   base: string;
@@ -38,13 +39,7 @@ export const analyticsApi = {
    * Retrieve historical exchange rate trends and statistics for a currency pair.
    */
   async getTrends(params: TrendFilterParams): Promise<CurrencyTrendsOut> {
-    const formattedParams = { ...params };
-    if (params.start_date instanceof Date) {
-      formattedParams.start_date = params.start_date.toISOString();
-    }
-    if (params.end_date instanceof Date) {
-      formattedParams.end_date = params.end_date.toISOString();
-    }
+    const formattedParams = formatDateQueryParams(params);
 
     return apiRequest<CurrencyTrendsOut>(
       {

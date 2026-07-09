@@ -2,6 +2,12 @@
 export { default as apiClient, apiRequest } from './client';
 export { API_CONFIG } from './config';
 export { tokenStorage } from './storage';
+export {
+	normalizeQueryParams,
+	formatDateQueryParams,
+	toIsoString,
+	dispatchSessionExpiredEvent,
+} from './helpers';
 export { ApiError, parseApiError, type ApiValidationError } from './errors';
 
 // Endpoint Helpers

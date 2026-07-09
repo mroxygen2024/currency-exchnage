@@ -6,6 +6,17 @@ import * as favoriteSchemas from './schemas/favorites';
 import * as notificationSchemas from './schemas/notifications';
 import * as healthSchemas from './schemas/health';
 
+export interface ApiSuccessResponse<T> {
+	data: T;
+}
+
+export interface ApiMessageResponse {
+	success: boolean;
+	message: string;
+}
+
+export type ApiListResponse<T> = T[];
+
 // --- Auth Types ---
 export type UserOut = z.infer<typeof authSchemas.userOutSchema>;
 export type Token = z.infer<typeof authSchemas.tokenSchema>;

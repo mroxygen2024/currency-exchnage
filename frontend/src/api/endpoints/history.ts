@@ -7,6 +7,7 @@ import {
   PaginatedHistory,
   CurrencyConversionOut,
 } from '../types';
+import { formatDateQueryParams } from '../helpers';
 
 export interface HistoryFilterParams {
   page?: number;
@@ -36,14 +37,7 @@ export const historyApi = {
    * Retrieve list of historical conversions with filtering and sorting.
    */
   async getHistory(params?: HistoryFilterParams): Promise<PaginatedHistory> {
-    // Format dates to ISO strings for query parameters if they are Date objects
-    const formattedParams = { ...params };
-    if (params?.start_date instanceof Date) {
-      formattedParams.start_date = params.start_date.toISOString();
-    }
-    if (params?.end_date instanceof Date) {
-      formattedParams.end_date = params.end_date.toISOString();
-    }
+    const formattedParams = formatDateQueryParams(params);
 
     return apiRequest<PaginatedHistory>(
       {
@@ -59,13 +53,7 @@ export const historyApi = {
    * Export conversion history as a CSV Blob.
    */
   async exportHistory(params?: HistoryExportParams): Promise<Blob> {
-    const formattedParams = { ...params };
-    if (params?.start_date instanceof Date) {
-      formattedParams.start_date = params.start_date.toISOString();
-    }
-    if (params?.end_date instanceof Date) {
-      formattedParams.end_date = params.end_date.toISOString();
-    }
+    const formattedParams = formatDateQueryParams(params);
 
     return apiRequest<Blob>({
       url: '/history/export',
