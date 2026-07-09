@@ -1,4 +1,5 @@
 from typing import Annotated, Any
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from pydantic import BeforeValidator, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -117,6 +118,11 @@ class Settings(BaseSettings):
 
         If DATABASE_URL is provided (e.g. from Render), use it directly.
         Otherwise, construct from individual components with SSL support.
+
+        NOTE: asyncpg does NOT accept ``sslmode`` as a URL query parameter.
+        Providers like Neon and Render inject ``sslmode=require`` in their
+        connection strings. We strip it here and enforce SSL via the engine's
+        ``connect_args`` instead (see database.py).
         """
         if self.DATABASE_URL:
             url = self.DATABASE_URL
@@ -125,30 +131,37 @@ class Settings(BaseSettings):
                 url = "postgresql+asyncpg://" + url[len("postgresql://"):]
             elif url.startswith("postgres://"):
                 url = "postgresql+asyncpg://" + url[len("postgres://"):]
-            # Ensure sslmode is present for Render (which requires SSL)
-            if self.DATABASE_SSLMODE and "sslmode" not in url:
-                separator = "&" if "?" in url else "?"
-                url = f"{url}{separator}sslmode={self.DATABASE_SSLMODE}"
-            elif self.ENV == "production" and "sslmode" not in url:
-                separator = "&" if "?" in url else "?"
-                url = f"{url}{separator}sslmode=require"
+            # Strip sslmode – asyncpg does not understand it as a URL param
+            parsed = urlparse(url)
+            params = parse_qs(parsed.query, keep_blank_values=True)
+            params.pop("sslmode", None)
+            params.pop("channel_binding", None)
+            rebuilt_query = urlencode(params, doseq=True)
+            url = urlunparse(parsed._replace(query=rebuilt_query))
             return url
 
-        # Fallback: construct from individual components
-        base_url = (
+        # Fallback: construct from individual components (no sslmode in URL)
+        return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
-        # Build query parameters
-        params = []
-        if self.ENV == "production" or self.DATABASE_SSLMODE:
-            sslmode = self.DATABASE_SSLMODE or "require"
-            params.append(f"sslmode={sslmode}")
-        if self.PGCHANNELBINDING:
-            params.append(f"channel_binding={self.PGCHANNELBINDING}")
-        if params:
-            base_url = f"{base_url}?{'&'.join(params)}"
-        return base_url
+
+    @computed_field
+    @property
+    def database_ssl_enabled(self) -> bool:
+        """Whether the async database connection should enforce SSL.
+
+        Used by database.py ``connect_args`` instead of passing ``sslmode``
+        in the URL (which asyncpg does not support).
+        """
+        if self.ENV == "production":
+            return True
+        if self.DATABASE_SSLMODE and self.DATABASE_SSLMODE not in (
+            "disable",
+            "allow",
+        ):
+            return True
+        return False
 
     @computed_field
     @property

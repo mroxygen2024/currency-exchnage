@@ -12,6 +12,7 @@ services:
     name: currency-exchange-api
     plan: free
     runtime: docker
+    healthCheckPath: /api/v1/health
     envVars:
       # General Configuration
       - key: ENV
@@ -29,9 +30,9 @@ services:
       - key: SECRET_KEY
         generateValue: true
 
-      # CORS Configuration (add your Vercel frontend URL)
+      # CORS Configuration (exact origins only — wildcards are not supported)
       - key: BACKEND_CORS_ORIGINS
-        value: "https://aero-exchange.vercel.app,https://aero-exchange-git-main.vercel.app,https://aero-exchange-*.vercel.app"
+        value: "https://aero-exchange.vercel.app,https://aero-exchange-git-main.vercel.app,http://localhost:5173,http://localhost:3000"
 
       # PostgreSQL Database - Use full connection string from managed database
       - key: DATABASE_URL
@@ -60,6 +61,10 @@ services:
         fromDatabase:
           name: currency-db
           property: database
+
+      # SSL mode for database connections (asyncpg handles via connect_args, not URL)
+      - key: DATABASE_SSLMODE
+        value: "require"
 
       # Redis Cache - Use full connection string from managed Redis
       - key: REDIS_URL

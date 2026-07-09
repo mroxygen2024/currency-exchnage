@@ -42,6 +42,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         cors_origins=settings.BACKEND_CORS_ORIGINS,
         postgres_server=settings.POSTGRES_SERVER,
         redis_host=settings.REDIS_HOST,
+        db_ssl_enabled=settings.database_ssl_enabled,
     )
 
     # 2. Initialize Redis connection pool and verify connection
@@ -131,6 +132,16 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+    logger.info(
+        "CORS middleware configured",
+        allowed_origins=settings.BACKEND_CORS_ORIGINS,
+        allow_credentials=True,
+    )
+else:
+    logger.warning(
+        "CORS middleware NOT configured — BACKEND_CORS_ORIGINS is empty. "
+        "Cross-origin requests will be blocked by the browser."
     )
 
 app.add_middleware(SecurityHeadersMiddleware)

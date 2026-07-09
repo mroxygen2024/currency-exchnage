@@ -14,6 +14,15 @@ from app.core.logging import logger
 # ------------------------------------------------------------------------------
 # Async Engine & Sessionmaker Creation
 # ------------------------------------------------------------------------------
+_connect_args: dict = {}
+if settings.database_ssl_enabled:
+    import ssl as _ssl
+
+    _ssl_ctx = _ssl.create_default_context()
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode = _ssl.CERT_NONE
+    _connect_args["ssl"] = _ssl_ctx
+
 engine = create_async_engine(
     settings.async_database_url,
     pool_size=settings.DB_POOL_SIZE,
@@ -21,7 +30,8 @@ engine = create_async_engine(
     pool_pre_ping=settings.DB_POOL_PRE_PING,
     pool_recycle=settings.DB_POOL_RECYCLE,
     future=True,
-    echo=False,  # Log queries directly when debugging if needed (set to True/False)
+    echo=False,
+    connect_args=_connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(
