@@ -5,7 +5,11 @@ import { GuestRoute, ProtectedRoute } from './auth/ProtectedRoute';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
-import { SessionPage } from './pages/SessionPage';
+import { DashboardLayout } from './components/dashboard/DashboardLayout';
+import { DashboardOverview } from './pages/dashboard/DashboardOverview';
+import { DashboardHistory } from './pages/dashboard/DashboardHistory';
+import { DashboardFavorites } from './pages/dashboard/DashboardFavorites';
+import { DashboardSettings } from './pages/dashboard/DashboardSettings';
 import './App.css';
 
 export default function App() {
@@ -31,7 +35,12 @@ export default function App() {
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        <Route path="/dashboard" element={<SessionPage />} />
+        <Route path="/dashboard" element={<DashboardLayout />}>
+          <Route index element={<DashboardOverview />} />
+          <Route path="history" element={<DashboardHistory />} />
+          <Route path="favorites" element={<DashboardFavorites />} />
+          <Route path="settings" element={<DashboardSettings />} />
+        </Route>
       </Route>
 
       <Route path="/" element={<LandingPage />} />
@@ -40,4 +49,5 @@ export default function App() {
     </Routes>
   );
 }
+
 

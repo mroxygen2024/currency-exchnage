@@ -99,7 +99,7 @@ describe('Protected and Guest Routes', () => {
   });
 
   describe('GuestRoute', () => {
-    it('should redirect authenticated users to root (/)', async () => {
+    it('should redirect authenticated users to dashboard (/dashboard)', async () => {
       vi.mocked(useAuth).mockReturnValue({
         user: { id: 1, email: 'test@example.com', role: 'user', is_active: true, is_deleted: false },
         isAuthenticated: true,
@@ -118,13 +118,13 @@ describe('Protected and Guest Routes', () => {
             <Route element={<GuestRoute />}>
               <Route path="/auth/login" element={<div data-testid="login-page">Sign In Page</div>} />
             </Route>
-            <Route path="/" element={<div data-testid="home-page">Main Application</div>} />
+            <Route path="/dashboard" element={<div data-testid="dashboard-page">Dashboard</div>} />
           </Routes>
         </MemoryRouter>
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('home-page')).toBeInTheDocument();
+        expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
       });
       expect(screen.queryByTestId('login-page')).not.toBeInTheDocument();
     });
