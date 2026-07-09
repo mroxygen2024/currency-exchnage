@@ -777,3 +777,350 @@
 .slide-in-from-bottom-3 {
   animation: slide-in-from-bottom 0.3s ease-out;
 }
+
+/* ─── Analytics Page ─────────────────────────────────────────────────── */
+
+/* Filters */
+.analytics-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.analytics-filters__pair {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.analytics-filters__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.analytics-filters__selectors {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.analytics-filters__selectors > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.analytics-filters__swap {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 99px;
+  background: #0b4852;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.analytics-filters__swap:hover {
+  background: #0d7380;
+  transform: rotate(180deg);
+}
+
+.analytics-filters__date {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.analytics-filters__dates {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.analytics-filters__presets {
+  display: flex;
+  gap: 4px;
+  background: rgba(226, 232, 240, 0.5);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.analytics-filters__preset {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.analytics-filters__preset:hover {
+  color: #0b6974;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.analytics-filters__preset--active {
+  background: white;
+  color: #0b6974;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.analytics-filters__custom-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.analytics-filters__date-input {
+  padding: 6px 10px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.7);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.analytics-filters__date-input:focus {
+  border-color: #0b6974;
+  box-shadow: 0 0 0 3px rgba(11, 105, 116, 0.1);
+}
+
+.analytics-filters__clear-dates {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  background: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.analytics-filters__clear-dates:hover {
+  border-color: #0b6974;
+  color: #0b6974;
+}
+
+/* Stat Cards */
+.analytics-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.analytics-stat-card__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(13, 115, 128, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0d7380;
+  margin-bottom: 4px;
+}
+
+.analytics-stat-card__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.analytics-stat-card__value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+
+.analytics-stat-card__value--up {
+  color: #16a34a;
+}
+
+.analytics-stat-card__value--down {
+  color: #dc2626;
+}
+
+/* Chart Header */
+.analytics-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+/* Chart Container */
+.analytics-chart {
+  padding: 8px 0;
+}
+
+.analytics-chart-skeleton {
+  min-height: 340px;
+}
+
+.analytics-chart-error,
+.analytics-chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 240px;
+  padding: 24px;
+}
+
+/* Tooltip */
+.analytics-tooltip {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.analytics-tooltip__date {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+
+.analytics-tooltip__rate {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #0b6974;
+}
+
+/* Pair Rank Badge */
+.analytics-pair-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+/* Summary Bar */
+.analytics-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+  justify-content: center;
+}
+
+.analytics-summary__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.analytics-summary__value {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.analytics-summary__label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+/* Error Retry Button */
+.analytics-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(254, 226, 226, 0.3);
+  border: 1px solid rgba(252, 165, 165, 0.3);
+}
+
+.analytics-error__retry {
+  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  background: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0b6974;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.analytics-error__retry:hover {
+  background: rgba(11, 105, 116, 0.05);
+  border-color: #0b6974;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .analytics-filters__selectors {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .analytics-filters__swap {
+    align-self: center;
+    transform: rotate(90deg);
+    margin: 0;
+  }
+
+  .analytics-filters__swap:hover {
+    transform: rotate(270deg);
+  }
+
+  .analytics-filters__dates {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .analytics-filters__presets {
+    justify-content: center;
+  }
+
+  .analytics-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .analytics-error {
+    flex-wrap: wrap;
+  }
+}

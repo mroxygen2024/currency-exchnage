@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import {
   ArrowRightLeft,
   Bell,
+  BarChart3,
   ChevronDown,
   History,
   LayoutDashboard,
@@ -131,6 +132,16 @@ export function DashboardLayout() {
         >
           <Star size={18} />
           Favorites
+        </NavLink>
+
+        <NavLink
+          to="/dashboard/analytics"
+          className={({ isActive }) =>
+            `dashboard-sidebar__link ${isActive ? 'dashboard-sidebar__link--active' : ''}`
+          }
+        >
+          <BarChart3 size={18} />
+          Analytics
         </NavLink>
 
         <NavLink

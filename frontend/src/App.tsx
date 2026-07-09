@@ -10,6 +10,7 @@ import { DashboardOverview } from './pages/dashboard/DashboardOverview';
 import { DashboardHistory } from './pages/dashboard/DashboardHistory';
 import { DashboardFavorites } from './pages/dashboard/DashboardFavorites';
 import { DashboardSettings } from './pages/dashboard/DashboardSettings';
+import { DashboardAnalytics } from './pages/dashboard/DashboardAnalytics';
 import './App.css';
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="history" element={<DashboardHistory />} />
           <Route path="favorites" element={<DashboardFavorites />} />
           <Route path="settings" element={<DashboardSettings />} />
+          <Route path="analytics" element={<DashboardAnalytics />} />
         </Route>
       </Route>
 
