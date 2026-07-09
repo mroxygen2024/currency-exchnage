@@ -61,37 +61,104 @@ export function RegisterPage() {
         </p>
       }
     >
-      <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
+      <form className="auth-form" onSubmit={handleSubmit(onSubmit)} noValidate>
         <div className="two-column">
           <div>
             <label htmlFor="first_name">First name</label>
-            <input id="first_name" type="text" autoComplete="given-name" {...register('first_name')} />
-            {errors.first_name ? <span className="field-error">{errors.first_name.message}</span> : null}
+            <div className="auth-input-wrapper">
+              <input
+                id="first_name"
+                type="text"
+                autoComplete="given-name"
+                aria-invalid={errors.first_name ? 'true' : 'false'}
+                aria-describedby={errors.first_name ? 'first-name-error' : undefined}
+                placeholder="Jane"
+                {...register('first_name')}
+              />
+            </div>
+            {errors.first_name ? (
+              <span id="first-name-error" className="field-error" role="alert">
+                {errors.first_name.message}
+              </span>
+            ) : null}
           </div>
 
           <div>
             <label htmlFor="last_name">Last name</label>
-            <input id="last_name" type="text" autoComplete="family-name" {...register('last_name')} />
-            {errors.last_name ? <span className="field-error">{errors.last_name.message}</span> : null}
+            <div className="auth-input-wrapper">
+              <input
+                id="last_name"
+                type="text"
+                autoComplete="family-name"
+                aria-invalid={errors.last_name ? 'true' : 'false'}
+                aria-describedby={errors.last_name ? 'last-name-error' : undefined}
+                placeholder="Doe"
+                {...register('last_name')}
+              />
+            </div>
+            {errors.last_name ? (
+              <span id="last-name-error" className="field-error" role="alert">
+                {errors.last_name.message}
+              </span>
+            ) : null}
           </div>
         </div>
 
         <div>
-          <label htmlFor="email">Email</label>
-          <input id="email" type="email" autoComplete="email" {...register('email')} />
-          {errors.email ? <span className="field-error">{errors.email.message}</span> : null}
+          <label htmlFor="email">Email address</label>
+          <div className="auth-input-wrapper">
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              aria-invalid={errors.email ? 'true' : 'false'}
+              aria-describedby={errors.email ? 'email-error' : undefined}
+              placeholder="jane.doe@example.com"
+              {...register('email')}
+            />
+          </div>
+          {errors.email ? (
+            <span id="email-error" className="field-error" role="alert">
+              {errors.email.message}
+            </span>
+          ) : null}
         </div>
 
         <div>
           <label htmlFor="password">Password</label>
-          <input id="password" type="password" autoComplete="new-password" {...register('password')} />
-          {errors.password ? <span className="field-error">{errors.password.message}</span> : null}
+          <div className="auth-input-wrapper">
+            <input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              aria-invalid={errors.password ? 'true' : 'false'}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+              placeholder="••••••••"
+              {...register('password')}
+            />
+          </div>
+          {errors.password ? (
+            <span id="password-error" className="field-error" role="alert">
+              {errors.password.message}
+            </span>
+          ) : null}
         </div>
 
-        {(formError || authError) && <div className="form-alert">{formError ?? authError}</div>}
+        {(formError || authError) && (
+          <div className="form-alert" role="alert" aria-live="polite">
+            {formError ?? authError}
+          </div>
+        )}
 
         <button type="submit" className="primary-button" disabled={isSubmitting}>
-          {isSubmitting ? 'Creating account...' : 'Create account'}
+          {isSubmitting ? (
+            <>
+              <span className="button-spinner" aria-hidden="true" />
+              <span>Creating account...</span>
+            </>
+          ) : (
+            'Create account'
+          )}
         </button>
       </form>
     </AuthShell>

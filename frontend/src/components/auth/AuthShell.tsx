@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { ArrowRightLeft, LockKeyhole, RefreshCw, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -13,10 +14,10 @@ export function AuthShell({ eyebrow, title, description, children, footer }: Aut
   return (
     <main className="shell auth-shell">
       <section className="auth-hero">
-        <div className="auth-hero__badge">
+        <Link to="/" className="auth-hero__badge" style={{ textDecoration: 'none' }} aria-label="AeroExchange Home">
           <ArrowRightLeft size={16} />
-          Currency Exchange
-        </div>
+          AeroExchange
+        </Link>
         <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
         <p className="auth-hero__copy">{description}</p>

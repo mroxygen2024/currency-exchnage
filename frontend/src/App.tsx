@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { useAuth } from './auth/AuthContext';
 import { GuestRoute, ProtectedRoute } from './auth/ProtectedRoute';
+import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { SessionPage } from './pages/SessionPage';
@@ -30,10 +31,13 @@ export default function App() {
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<SessionPage />} />
+        <Route path="/dashboard" element={<SessionPage />} />
       </Route>
 
-      <Route path="*" element={<Navigate to={isAuthenticated ? '/' : '/auth/login'} replace />} />
+      <Route path="/" element={<LandingPage />} />
+
+      <Route path="*" element={<Navigate to={isAuthenticated ? '/dashboard' : '/'} replace />} />
     </Routes>
   );
 }
+

@@ -67,23 +67,62 @@ export function LoginPage() {
         </p>
       }
     >
-      <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
+      <form className="auth-form" onSubmit={handleSubmit(onSubmit)} noValidate>
         <div>
-          <label htmlFor="email">Email</label>
-          <input id="email" type="email" autoComplete="email" {...register('email')} />
-          {errors.email ? <span className="field-error">{errors.email.message}</span> : null}
+          <label htmlFor="email">Email address</label>
+          <div className="auth-input-wrapper">
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              aria-invalid={errors.email ? 'true' : 'false'}
+              aria-describedby={errors.email ? 'email-error' : undefined}
+              placeholder="name@example.com"
+              {...register('email')}
+            />
+          </div>
+          {errors.email ? (
+            <span id="email-error" className="field-error" role="alert">
+              {errors.email.message}
+            </span>
+          ) : null}
         </div>
 
         <div>
           <label htmlFor="password">Password</label>
-          <input id="password" type="password" autoComplete="current-password" {...register('password')} />
-          {errors.password ? <span className="field-error">{errors.password.message}</span> : null}
+          <div className="auth-input-wrapper">
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              aria-invalid={errors.password ? 'true' : 'false'}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+              placeholder="••••••••"
+              {...register('password')}
+            />
+          </div>
+          {errors.password ? (
+            <span id="password-error" className="field-error" role="alert">
+              {errors.password.message}
+            </span>
+          ) : null}
         </div>
 
-        {(formError || authError) && <div className="form-alert">{formError ?? authError}</div>}
+        {(formError || authError) && (
+          <div className="form-alert" role="alert" aria-live="polite">
+            {formError ?? authError}
+          </div>
+        )}
 
         <button type="submit" className="primary-button" disabled={isSubmitting}>
-          {isSubmitting ? 'Signing in...' : 'Sign in'}
+          {isSubmitting ? (
+            <>
+              <span className="button-spinner" aria-hidden="true" />
+              <span>Signing in...</span>
+            </>
+          ) : (
+            'Sign in'
+          )}
         </button>
       </form>
     </AuthShell>
