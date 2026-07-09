@@ -87,7 +87,10 @@ vi.mock('../../hooks/useCurrency', () => ({
     isLoading: false,
     error: null,
   })),
-  useConversionHistory: vi.fn(() => ({
+}));
+
+vi.mock('../../hooks/useHistory', () => ({
+  useHistoryList: vi.fn(() => ({
     data: {
       items: [
         {
@@ -107,6 +110,15 @@ vi.mock('../../hooks/useCurrency', () => ({
     },
     isLoading: false,
     error: null,
+  })),
+  useHistoryRecord: vi.fn(() => ({
+    data: null,
+    isLoading: false,
+    error: null,
+  })),
+  useDeleteHistoryRecord: vi.fn(() => ({
+    mutate: vi.fn(),
+    isPending: false,
   })),
 }));
 

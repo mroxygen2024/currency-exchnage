@@ -20,9 +20,9 @@ import { CurrencySelector } from '../../components/CurrencySelector';
 import {
   useCurrencyRate,
   useCurrencyConversion,
-  useConversionHistory,
   useAllRates,
 } from '../../hooks/useCurrency';
+import { useHistoryList } from '../../hooks/useHistory';
 import { useRealtimeRates } from '../../hooks/useRealtimeRates';
 import { useNotificationSubscriptions, useDeleteAlert } from '../../hooks/useNotifications';
 import { useSystemAnalytics } from '../../hooks/useAnalytics';
@@ -118,7 +118,7 @@ export function DashboardOverview() {
     !!queryParams
   );
 
-  const { data: historyData, isLoading: isLoadingHistory, error: historyError } = useConversionHistory({ limit: 4 });
+  const { data: historyData, isLoading: isLoadingHistory, error: historyError } = useHistoryList({ limit: 4 });
   const recentConversions = historyData?.items || [];
 
   useEffect(() => {
