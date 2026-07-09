@@ -108,10 +108,6 @@ def mock_exchange_rate_provider(monkeypatch) -> None:
         "app.modules.currency.services.get_exchange_rate_provider",
         lambda: MockProvider(),
     )
-    monkeypatch.setattr(
-        "app.modules.currency.tasks.get_exchange_rate_provider",
-        lambda: MockProvider(),
-    )
 
 
 @pytest.fixture(autouse=True)
