@@ -267,7 +267,7 @@ export function DashboardOverview() {
                 placeholder="Enter amount..."
                 {...register('amount', { valueAsNumber: true })}
               />
-              {errors.amount && <span className="text-xs text-rose-500 font-semibold mt-1 block">{errors.amount.message}</span>}
+              {errors.amount && <span className="text-xs text-rose-500 font-semibold mt-1 block" role="alert">{errors.amount.message}</span>}
             </div>
 
             <div className="grid grid-cols-5 gap-4 items-end">
@@ -287,7 +287,7 @@ export function DashboardOverview() {
                 )} />
               </div>
             </div>
-            {errors.toCurrency && <span className="text-xs text-rose-500 font-semibold block">{errors.toCurrency.message}</span>}
+            {errors.toCurrency && <span className="text-xs text-rose-500 font-semibold block" role="alert">{errors.toCurrency.message}</span>}
 
             <div className="p-3 bg-slate-50 border border-slate-200/50 rounded-xl">
               <div className="flex justify-between text-xs text-slate-500">
@@ -332,7 +332,7 @@ export function DashboardOverview() {
             )}
 
             {conversionError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold" role="alert">
                 Conversion failed. Please try again.
               </div>
             )}

@@ -213,6 +213,7 @@ export function DashboardAnalytics() {
                 value={targetCurrency}
                 onChange={setTargetCurrency}
                 exclude={[baseCurrency]}
+                label="Target Currency"
               />
             </div>
           </div>
