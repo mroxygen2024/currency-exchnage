@@ -29,16 +29,9 @@ def wait_for_service(host, port, name):
                 sys.exit(1)
             time.sleep(1)
 
-# Wait for both dependencies
 wait_for_service(postgres_host, postgres_port, "PostgreSQL")
 wait_for_service(redis_host, redis_port, "Redis")
 EOF
-
-# If the check failed, exit immediately
-if [ $? -ne 0 ]; then
-    echo "Dependency readiness check failed. Exiting." >&2
-    exit 1
-fi
 
 # Run database migrations if requested
 if [ "$RUN_MIGRATIONS" = "true" ]; then

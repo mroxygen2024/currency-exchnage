@@ -25,8 +25,6 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Do not fail build if old historical dummy secrets exist in repo,
-        # but report them. Can be set to fail (exit-code 1) in strict mode.
 
   dependency-scan:
     name: Dependency Audit
@@ -35,10 +33,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Install pip-audit
         run: pip install pip-audit
@@ -54,15 +52,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Docker Image
-        run: |
-          docker build . -t currency-tracker-web:security-scan
+        run: docker build . -t currency-tracker-web:security-scan
 
       - name: Run Trivy Vulnerability Scanner
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'currency-tracker-web:security-scan'
           format: 'table'
-          exit-code: '1' # Fails the pipeline if vulnerabilities are found
+          exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL'

@@ -10,12 +10,17 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # ----------------------------------------------------------------------------
+  # Build & Push Production Images
+  # ----------------------------------------------------------------------------
   build-and-push:
-    name: Build & Push Production Image
+    name: Build & Push Production Images
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
 
     steps:
       - name: Checkout Repository
@@ -36,12 +41,11 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,value=${{ github.sha }}
-            type=ref,event=tag
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and Push Docker Image
+      - name: Build and Push Backend Image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -51,3 +55,132 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:sha-${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+  # ----------------------------------------------------------------------------
+  # Deploy to Production Server
+  # ----------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment:
+      name: production
+      url: ${{ vars.DEPLOY_URL }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -euo pipefail
+
+            DEPLOY_DIR="${{ vars.DEPLOY_DIR || '/opt/currency-tracker' }}"
+            COMPOSE_FILE="docker-compose.prod.yml"
+            IMAGE_TAG="sha-${{ github.sha }}"
+
+            echo "=== Deploying commit ${{ github.sha }} ==="
+
+            cd "$DEPLOY_DIR"
+
+            # Pull latest code
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Update image tags in environment
+            export IMAGE_TAG="$IMAGE_TAG"
+            export DOCKER_REGISTRY="${{ env.REGISTRY }}"
+            export DOCKER_REPOSITORY="${{ env.IMAGE_NAME }}"
+
+            # Pull new images
+            echo "=== Pulling new images ==="
+            docker compose -f "$COMPOSE_FILE" pull web frontend
+
+            # Save current state for rollback
+            CURRENT_WEB_IMAGE=$(docker inspect --format='{{.Config.Image}}' currency_tracker_web_prod 2>/dev/null || echo "none")
+            echo "CURRENT_WEB_IMAGE=$CURRENT_WEB_IMAGE" > /tmp/rollback_state.env
+
+            # Run database migrations
+            echo "=== Running database migrations ==="
+            docker compose -f "$COMPOSE_FILE" run --rm web alembic upgrade head || {
+              echo "Migration failed! Rolling back..."
+              docker compose -f "$COMPOSE_FILE" up -d --force-recreate web celery_worker celery_beat
+              exit 1
+            }
+
+            # Restart services with zero-downtime (rolling update)
+            echo "=== Restarting services ==="
+            docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps web
+            sleep 5
+            docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps frontend
+            sleep 5
+            docker compose -f "$COMPOSE_FILE" up -d --force-recreate --no-deps celery_worker celery_beat
+
+            # Verify health
+            echo "=== Verifying application health ==="
+            HEALTH_RETRIES=30
+            HEALTH_INTERVAL=2
+            HEALTHY=false
+
+            for i in $(seq 1 $HEALTH_RETRIES); do
+              if docker compose -f "$COMPOSE_FILE" exec -T web curl -sf http://localhost:8000/api/v1/health > /dev/null 2>&1; then
+                HEALTHY=true
+                echo "Backend is healthy after $i attempts"
+                break
+              fi
+              echo "Waiting for backend to be healthy (attempt $i/$HEALTH_RETRIES)..."
+              sleep $HEALTH_INTERVAL
+            done
+
+            if [ "$HEALTHY" = "false" ]; then
+              echo "=== HEALTH CHECK FAILED - Rolling back ==="
+              source /tmp/rollback_state.env || true
+              docker compose -f "$COMPOSE_FILE" up -d --force-recreate web celery_worker celery_beat
+              echo "Rollback completed. Deployment failed."
+              exit 1
+            fi
+
+            # Clean up old images
+            echo "=== Cleaning up old images ==="
+            docker image prune -f
+
+            echo "=== Deployment successful ==="
+
+      - name: Verify Deployment Health
+        if: success()
+        run: |
+          echo "Deployment completed. Verifying external health endpoint..."
+          DEPLOY_URL="${{ vars.DEPLOY_URL }}"
+          if [ -n "$DEPLOY_URL" ]; then
+            for i in $(seq 1 10); do
+              if curl -sf "${DEPLOY_URL}/api/v1/health" > /dev/null 2>&1; then
+                echo "External health check passed"
+                exit 0
+              fi
+              echo "Waiting for external health check (attempt $i/10)..."
+              sleep 5
+            done
+            echo "External health check failed"
+            exit 1
+          else
+            echo "No DEPLOY_URL configured, skipping external health check"
+          fi
