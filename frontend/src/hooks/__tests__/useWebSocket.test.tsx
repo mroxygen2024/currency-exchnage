@@ -1,6 +1,6 @@
 import { render, screen, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { useWebSocket, type ConnectionStatus } from '../useWebSocket';
+import { useWebSocket } from '../useWebSocket';
 
 class MockWebSocket {
   static CONNECTING = 0;

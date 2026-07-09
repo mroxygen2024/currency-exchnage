@@ -27,7 +27,8 @@ import {
 import { CurrencySelector } from '../../components/CurrencySelector';
 import { useSystemAnalytics, useTrends } from '../../hooks/useAnalytics';
 import { AnimatedCard } from '../../components/ui/AnimatedCard';
-import { CardSkeleton } from '../../components/ui/LoadingSkeleton';
+import { CardSkeleton, StatCardSkeleton } from '../../components/ui/LoadingSkeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 const PAIR_COLORS = [
   '#0d7380', '#d48c37', '#10354a', '#16a34a', '#8b5cf6',
@@ -183,7 +184,6 @@ export function DashboardAnalytics() {
         <p>Track exchange rate trends, view statistics, and explore platform-wide conversion data.</p>
       </div>
 
-      {/* Filters Row */}
       <AnimatedCard delay={0}>
         <div className="analytics-filters">
           <div className="analytics-filters__pair">
@@ -282,13 +282,12 @@ export function DashboardAnalytics() {
         </div>
       </AnimatedCard>
 
-      {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {isLoadingTrends ? (
           <>
             {Array.from({ length: 4 }).map((_, i) => (
               <AnimatedCard key={i} delay={i * 50}>
-                <CardSkeleton />
+                <StatCardSkeleton />
               </AnimatedCard>
             ))}
           </>
@@ -355,7 +354,6 @@ export function DashboardAnalytics() {
         ) : null}
       </div>
 
-      {/* Trend Chart */}
       <AnimatedCard delay={200}>
         <div className="analytics-chart-header">
           <h2 className="glass-widget__title mb-0">
@@ -385,12 +383,11 @@ export function DashboardAnalytics() {
             </button>
           </div>
         ) : chartData.length === 0 ? (
-          <div className="analytics-chart-empty">
-            <BarChart3 size={32} className="text-slate-300" />
-            <p className="text-sm text-slate-400 font-medium">
-              No trend data available for this pair and date range.
-            </p>
-          </div>
+          <EmptyState
+            icon={<BarChart3 size={32} />}
+            title="No trend data available"
+            description="No trend data available for this pair and date range."
+          />
         ) : (
           <div className="analytics-chart">
             <ResponsiveContainer width="100%" height={340}>
@@ -436,9 +433,7 @@ export function DashboardAnalytics() {
         )}
       </AnimatedCard>
 
-      {/* Bottom Row: Popular Pairs + Volume */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Popular Pairs Table */}
         <AnimatedCard delay={300}>
           <h2 className="glass-widget__title">
             <ArrowRightLeft size={16} /> Most Popular Pairs
@@ -461,10 +456,11 @@ export function DashboardAnalytics() {
               </button>
             </div>
           ) : popularPairs.length === 0 ? (
-            <div className="analytics-chart-empty">
-              <ArrowRightLeft size={24} className="text-slate-300" />
-              <p className="text-sm text-slate-400">No popular pair data available.</p>
-            </div>
+            <EmptyState
+              icon={<ArrowRightLeft size={24} />}
+              title="No popular pairs"
+              description="No popular pair data available."
+            />
           ) : (
             <div className="custom-table-container">
               <table className="custom-table">
@@ -504,7 +500,6 @@ export function DashboardAnalytics() {
           )}
         </AnimatedCard>
 
-        {/* Volume by Currency Chart */}
         <AnimatedCard delay={400}>
           <h2 className="glass-widget__title">
             <Coins size={16} /> Volume by Currency
@@ -527,10 +522,11 @@ export function DashboardAnalytics() {
               </button>
             </div>
           ) : volumeEntries.length === 0 ? (
-            <div className="analytics-chart-empty">
-              <Coins size={24} className="text-slate-300" />
-              <p className="text-sm text-slate-400">No volume data available.</p>
-            </div>
+            <EmptyState
+              icon={<Coins size={24} />}
+              title="No volume data"
+              description="No volume data available."
+            />
           ) : (
             <div className="analytics-chart">
               <ResponsiveContainer width="100%" height={280}>
@@ -556,8 +552,8 @@ export function DashboardAnalytics() {
                     width={50}
                   />
                   <Tooltip
-                    formatter={(value: number) => [
-                      `$${value.toLocaleString()}`,
+                    formatter={(value) => [
+                      `$${Number(value).toLocaleString()}`,
                       'Volume',
                     ]}
                     contentStyle={{
@@ -583,7 +579,6 @@ export function DashboardAnalytics() {
         </AnimatedCard>
       </div>
 
-      {/* Total Conversions Summary */}
       <AnimatedCard delay={500}>
         <div className="analytics-summary">
           <div className="analytics-summary__item">

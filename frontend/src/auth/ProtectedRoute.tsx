@@ -1,21 +1,28 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-
+import { Loader2 } from 'lucide-react';
 import { useAuth } from './AuthContext';
+
+function RouteLoading({ label }: { label: string }) {
+  return (
+    <main className="shell shell--centered">
+      <section className="status-card">
+        <div className="status-card__spinner" role="status" aria-label="Loading">
+          <Loader2 size={32} className="animate-spin text-teal-600" />
+        </div>
+        <p className="eyebrow">Session</p>
+        <h1>{label}</h1>
+        <p>Checking your bearer token and rotating refresh credentials if needed.</p>
+      </section>
+    </main>
+  );
+}
 
 export function ProtectedRoute() {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
-    return (
-      <main className="shell shell--centered">
-        <section className="status-card">
-          <p className="eyebrow">Session</p>
-          <h1>Restoring secure access</h1>
-          <p>Checking your bearer token and rotating refresh credentials if needed.</p>
-        </section>
-      </main>
-    );
+    return <RouteLoading label="Restoring secure access" />;
   }
 
   if (!isAuthenticated) {
@@ -29,15 +36,7 @@ export function GuestRoute() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <main className="shell shell--centered">
-        <section className="status-card">
-          <p className="eyebrow">Session</p>
-          <h1>Checking your session</h1>
-          <p>Making sure your account state is current before loading the form.</p>
-        </section>
-      </main>
-    );
+    return <RouteLoading label="Checking your session" />;
   }
 
   if (isAuthenticated) {

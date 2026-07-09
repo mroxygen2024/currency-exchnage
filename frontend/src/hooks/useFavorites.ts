@@ -19,7 +19,7 @@ export function useFavorites() {
 export function useAddFavorite() {
   const queryClient = useQueryClient();
 
-  return useMutation<FavoritePairOut, ApiError, FavoritePairCreate>({
+  return useMutation<FavoritePairOut, ApiError, FavoritePairCreate, { previous: FavoritePairOut[] | undefined }>({
     mutationFn: (data) => favoritesApi.addFavorite(data),
     onMutate: async (data) => {
       await queryClient.cancelQueries({ queryKey: favoritesKeys.all });
@@ -54,7 +54,7 @@ export function useAddFavorite() {
 export function useDeleteFavorite() {
   const queryClient = useQueryClient();
 
-  return useMutation<{ success: boolean; message: string }, ApiError, number>({
+  return useMutation<{ success: boolean; message: string }, ApiError, number, { previous: FavoritePairOut[] | undefined }>({
     mutationFn: (id) => favoritesApi.deleteFavorite(id),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: favoritesKeys.all });

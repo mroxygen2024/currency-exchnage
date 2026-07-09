@@ -11,7 +11,7 @@ const mockRecord: CurrencyConversionOut = {
   amount: 1500,
   rate: 0.92,
   result: 1380,
-  converted_at: '2026-07-09T10:30:00.000Z',
+  converted_at: new Date('2026-07-09T10:30:00.000Z'),
 };
 
 describe('HistoryDetailModal', () => {

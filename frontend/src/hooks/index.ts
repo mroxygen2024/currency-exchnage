@@ -7,3 +7,5 @@ export { useHistoryList, useHistoryRecord, useDeleteHistoryRecord } from './useH
 export { useFavorites, useAddFavorite, useDeleteFavorite } from './useFavorites';
 export { useNotificationSubscriptions, useSubscribeAlert, useDeleteAlert } from './useNotifications';
 export { useSystemAnalytics, useTrends } from './useAnalytics';
+export { useToast } from '../components/ui/Toast';
+export { useFocusTrap, useEscapeKey } from './useFocusTrap';

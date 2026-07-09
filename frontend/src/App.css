@@ -1447,4 +1447,141 @@ select:focus-visible {
   .hamburger-btn {
     display: block;
   }
+
+  .converter-card {
+    padding: 20px;
+  }
+
+  .converter-input-wrapper select {
+    width: 80px;
+    padding: 0 10px;
+    font-size: 0.85rem;
+  }
+
+  .rates-table th,
+  .rates-table td {
+    padding: 12px 14px;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .shell {
+    padding: 12px;
+  }
+
+  .auth-hero,
+  .auth-card {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .auth-hero h1 {
+    font-size: 1.8rem;
+  }
+
+  .converter-card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .converter-input-wrapper {
+    height: 44px;
+  }
+
+  .converter-input-wrapper input {
+    font-size: 1rem;
+    padding: 0 12px;
+  }
+
+  .converter-input-wrapper select {
+    width: 72px;
+    padding: 0 8px;
+    font-size: 0.8rem;
+  }
+
+  .hero-stats {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .stat-val {
+    font-size: 1.4rem;
+  }
+
+  .rates-table {
+    font-size: 0.8rem;
+  }
+
+  .rates-table th,
+  .rates-table td {
+    padding: 10px 8px;
+  }
+
+  .features-section,
+  .rates-section,
+  .architecture-section,
+  .faq-section {
+    padding: 48px 16px;
+  }
+
+  .section-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .bento-card {
+    padding: 20px;
+  }
+
+  .arch-diagram-wrapper {
+    padding: 20px;
+  }
+
+  .arch-node {
+    width: 100%;
+    padding: 14px;
+  }
+
+  .footer {
+    padding: 40px 16px 24px;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .faq-trigger {
+    padding: 14px 16px;
+    font-size: 0.95rem;
+  }
+
+  .faq-content-inner p {
+    padding: 0 16px 16px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-header,
+  .nav-header--scrolled {
+    transition: none;
+  }
+
+  .faq-content {
+    transition: none;
+  }
+
+  .bento-card,
+  .converter-card,
+  .glass-widget {
+    transition: none;
+  }
+}
+
+.breadcrumbs__segment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }

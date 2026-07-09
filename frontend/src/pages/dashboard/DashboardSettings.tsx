@@ -3,10 +3,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle, Shield, Trash2, User } from 'lucide-react';
+import { AlertTriangle, Shield, Trash2, User } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { usersApi } from '../../api/endpoints/users';
 import { AnimatedCard } from '../../components/ui/AnimatedCard';
+import { Dialog, DialogActions, DialogButton } from '../../components/ui/Dialog';
+import { useToast } from '../../components/ui/Toast';
 import { ApiError } from '../../api/errors';
 import { useNavigate } from 'react-router-dom';
 
@@ -31,72 +33,14 @@ const passwordSchema = z.object({
 
 type PasswordFormData = z.infer<typeof passwordSchema>;
 
-function DeleteAccountDialog({
-  onConfirm,
-  onCancel,
-  isPending,
-}: {
-  onConfirm: () => void;
-  onCancel: () => void;
-  isPending: boolean;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Confirm account deletion"
-    >
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onCancel} />
-
-      <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in">
-        <div className="px-6 pt-6 pb-4 text-center">
-          <div className="mx-auto h-12 w-12 rounded-full bg-red-50 flex items-center justify-center mb-4">
-            <AlertTriangle size={22} className="text-red-500" />
-          </div>
-          <h2 className="text-base font-bold text-slate-800">Delete Account</h2>
-          <p className="text-sm text-slate-500 mt-2">
-            Are you sure you want to delete your account? This action cannot be undone.
-            All your data will be permanently removed.
-          </p>
-        </div>
-
-        <div className="px-6 pb-6 flex gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isPending}
-            className="flex-1 h-10 text-xs font-bold border border-slate-200 rounded-xl bg-white hover:bg-slate-50 text-slate-600 transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isPending}
-            className="flex-1 h-10 text-xs font-bold rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            {isPending ? 'Deleting...' : 'Delete My Account'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function DashboardSettings() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const toast = useToast();
 
   const userInitial = (user?.first_name || user?.email || 'U')[0].toUpperCase();
-
-  const showNotification = (type: 'success' | 'error', message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 4000);
-  };
 
   const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -119,10 +63,10 @@ export function DashboardSettings() {
     mutationFn: (data: ProfileFormData) => usersApi.updateProfile(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      showNotification('success', 'Profile information updated successfully!');
+      toast.success('Profile updated', 'Profile information updated successfully!');
     },
     onError: (err: ApiError) => {
-      showNotification('error', err.message || 'Failed to update profile.');
+      toast.error('Update failed', err.message || 'Failed to update profile.');
     },
   });
 
@@ -130,11 +74,11 @@ export function DashboardSettings() {
     mutationFn: (data: { current_password: string; new_password: string }) =>
       usersApi.changePassword(data),
     onSuccess: () => {
-      showNotification('success', 'Password updated successfully!');
+      toast.success('Password updated', 'Password updated successfully!');
       passwordForm.reset();
     },
     onError: (err: ApiError) => {
-      showNotification('error', err.message || 'Failed to update password.');
+      toast.error('Password update failed', err.message || 'Failed to update password.');
     },
   });
 
@@ -144,9 +88,10 @@ export function DashboardSettings() {
       queryClient.clear();
       logout();
       navigate('/', { replace: true });
+      toast.success('Account deleted', 'Your account has been permanently deleted.');
     },
     onError: (err: ApiError) => {
-      showNotification('error', err.message || 'Failed to delete account.');
+      toast.error('Delete failed', err.message || 'Failed to delete account.');
       setShowDeleteDialog(false);
     },
   });
@@ -172,24 +117,6 @@ export function DashboardSettings() {
         <h1>Account Settings</h1>
         <p>Manage your profile, password, and account preferences.</p>
       </div>
-
-      {notification && (
-        <div
-          className={`p-4 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-3 duration-300 ${
-            notification.type === 'success'
-              ? 'bg-teal-50 border border-teal-200 text-teal-800'
-              : 'bg-red-50 border border-red-200 text-red-800'
-          }`}
-          data-testid="settings-notification"
-        >
-          {notification.type === 'success' ? (
-            <CheckCircle className="text-teal-600 flex-shrink-0" size={18} />
-          ) : (
-            <AlertTriangle className="text-red-600 flex-shrink-0" size={18} />
-          )}
-          <span className="text-sm font-semibold">{notification.message}</span>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -386,13 +313,29 @@ export function DashboardSettings() {
         </div>
       </div>
 
-      {showDeleteDialog && (
-        <DeleteAccountDialog
-          onConfirm={handleDeleteAccount}
-          onCancel={() => setShowDeleteDialog(false)}
-          isPending={deleteAccount.isPending}
-        />
-      )}
+      <Dialog
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        title="Delete Account"
+        description="Are you sure you want to delete your account? This action cannot be undone. All your data will be permanently removed."
+        size="sm"
+        variant="destructive"
+        icon={<AlertTriangle size={20} />}
+        footer={
+          <DialogActions>
+            <DialogButton variant="default" onClick={() => setShowDeleteDialog(false)} disabled={deleteAccount.isPending}>
+              Cancel
+            </DialogButton>
+            <DialogButton variant="destructive" onClick={handleDeleteAccount} isLoading={deleteAccount.isPending}>
+              Delete My Account
+            </DialogButton>
+          </DialogActions>
+        }
+      >
+        <p className="text-sm text-slate-500">
+          This will permanently erase all your conversion history, favorites, alerts, and personal data.
+        </p>
+      </Dialog>
     </div>
   );
 }

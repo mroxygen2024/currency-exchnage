@@ -594,15 +594,20 @@
   .dashboard-header__toggle {
     display: flex;
   }
+
+  .dashboard-page-title h1 {
+    font-size: 1.5rem;
+  }
 }
 
 @media (max-width: 768px) {
   .dashboard-header {
-    padding: 0 16px;
+    padding: 0 12px;
+    height: 60px;
   }
 
   .dashboard-content {
-    padding: 20px 16px;
+    padding: 16px 12px;
   }
 
   .breadcrumbs {
@@ -611,6 +616,61 @@
 
   .header-profile-trigger__name {
     display: none;
+  }
+
+  .dashboard-page-title h1 {
+    font-size: 1.3rem;
+  }
+
+  .dashboard-page-title p {
+    font-size: 0.85rem;
+  }
+
+  .glass-widget {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .wallet-card-list {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-table th,
+  .custom-table td {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+  }
+
+  .fav-card__mid-value {
+    font-size: 1.3rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-content {
+    padding: 12px 8px;
+  }
+
+  .dashboard-page-title h1 {
+    font-size: 1.1rem;
+  }
+
+  .glass-widget {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .wallet-mini-card {
+    padding: 10px;
+  }
+
+  .header-profile-trigger {
+    padding: 2px 6px 2px 2px;
+  }
+
+  .icon-button {
+    width: 36px;
+    height: 36px;
   }
 }
 

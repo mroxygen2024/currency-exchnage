@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,7 +8,6 @@ import {
   ArrowRight,
   ArrowRightLeft,
   Bell,
-  Coins,
   History,
   Plus,
   RefreshCw,
@@ -16,6 +15,8 @@ import {
   TrendingUp,
   Wallet,
   X,
+  AlertTriangle,
+  Search,
 } from 'lucide-react';
 import { CurrencySelector } from '../../components/CurrencySelector';
 import { useFavorites, useDeleteFavorite } from '../../hooks/useFavorites';
@@ -27,10 +28,10 @@ import {
 import { useHistoryList } from '../../hooks/useHistory';
 import { useRealtimeRates } from '../../hooks/useRealtimeRates';
 import { useNotificationSubscriptions, useDeleteAlert } from '../../hooks/useNotifications';
-import { useSystemAnalytics } from '../../hooks/useAnalytics';
-import { useAuth } from '../../auth/AuthContext';
 import { AnimatedCard } from '../../components/ui/AnimatedCard';
 import { CardSkeleton, TableSkeleton } from '../../components/ui/LoadingSkeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { useToast } from '../../components/ui/Toast';
 
 const conversionSchema = z.object({
   amount: z.number({ message: 'Amount is required' }).refine((val) => !isNaN(val) && val > 0, {
@@ -52,13 +53,11 @@ const PORTFOLIO_ALLOCATION: Record<string, number> = {
 };
 
 export function DashboardOverview() {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const toast = useToast();
   const [queryParams, setQueryParams] = useState<{ from: string; to: string; amount: number } | null>(null);
 
   const { data: allRates, isLoading: isLoadingRates } = useAllRates();
-  const analytics = useSystemAnalytics();
   const { data: alerts, isLoading: isLoadingAlerts } = useNotificationSubscriptions();
   const deleteAlert = useDeleteAlert();
   const { data: favorites } = useFavorites();
@@ -127,14 +126,13 @@ export function DashboardOverview() {
 
   useEffect(() => {
     if (conversionResult) {
-      setSuccessMsg(
-        `Successfully converted ${conversionResult.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${conversionResult.from_currency} to ${conversionResult.result.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${conversionResult.to_currency}!`
+      toast.success(
+        'Conversion successful',
+        `${conversionResult.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${conversionResult.from_currency} → ${conversionResult.result.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${conversionResult.to_currency}`
       );
       queryClient.invalidateQueries({ queryKey: ['history'] });
-      const timer = setTimeout(() => setSuccessMsg(null), 5000);
-      return () => clearTimeout(timer);
     }
-  }, [conversionResult, queryClient]);
+  }, [conversionResult, queryClient, toast]);
 
   const handleSwap = () => {
     const from = getValues('fromCurrency');
@@ -153,13 +151,6 @@ export function DashboardOverview() {
         <h1>Dashboard Overview</h1>
         <p>Monitor your active balances, check live market pricing, and execute conversions.</p>
       </div>
-
-      {successMsg && (
-        <div className="p-4 bg-teal-50 border border-teal-200 text-teal-800 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-3 duration-300">
-          <Coins className="text-teal-600 flex-shrink-0" size={18} />
-          <span className="text-sm font-semibold">{successMsg}</span>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <AnimatedCard delay={0} badge="Active Portfolio">
@@ -238,10 +229,11 @@ export function DashboardOverview() {
             {isLoadingAlerts ? (
               <CardSkeleton />
             ) : !alerts || alerts.length === 0 ? (
-              <div className="text-center py-6 text-slate-400 text-sm font-medium">
-                <Bell className="mx-auto text-slate-300 mb-2" size={28} />
-                No active alerts. Create one to get notified on rate thresholds.
-              </div>
+              <EmptyState
+                icon={<Bell size={28} />}
+                title="No active alerts"
+                description="Create one to get notified on rate thresholds."
+              />
             ) : (
               alerts.map((alert) => (
                 <div key={alert.id} className="p-3 bg-white/60 border border-slate-200/60 rounded-xl flex items-center justify-between">
@@ -332,7 +324,7 @@ export function DashboardOverview() {
                 )} />
               </div>
               <div className="flex justify-center pb-1">
-                <button type="button" onClick={handleSwap} className="w-10 h-10 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-teal-600 transition-colors shadow-md transform hover:rotate-180 duration-300 cursor-pointer" aria-label="Swap Currencies">
+                <button type="button" onClick={handleSwap} className="w-10 h-10 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-teal-600 transition-colors shadow-md hover:rotate-180 duration-300 cursor-pointer" aria-label="Swap Currencies">
                   <ArrowRightLeft size={16} />
                 </button>
               </div>
@@ -412,9 +404,16 @@ export function DashboardOverview() {
           {isLoadingHistory ? (
             <TableSkeleton rows={4} cols={5} />
           ) : historyError ? (
-            <div className="text-center py-6 text-rose-500 font-semibold">Failed to load recent conversion history.</div>
+            <div className="flex flex-col items-center justify-center py-8 gap-2">
+              <AlertTriangle size={24} className="text-rose-400" />
+              <p className="text-sm font-semibold text-rose-600">Failed to load recent conversion history.</p>
+            </div>
           ) : recentConversions.length === 0 ? (
-            <div className="text-center py-6 text-slate-400 font-medium">No conversions logged yet. Set amounts above to add one.</div>
+            <EmptyState
+              icon={<Search size={28} />}
+              title="No conversions yet"
+              description="Set amounts above to add one."
+            />
           ) : (
             <div className="custom-table-container flex-1">
               <table className="custom-table">

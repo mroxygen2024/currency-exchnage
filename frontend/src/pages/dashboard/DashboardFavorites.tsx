@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,6 +10,8 @@ import { CurrencySelector } from '../../components/CurrencySelector';
 import { FavoriteCard } from '../../components/dashboard/FavoriteCard';
 import { AnimatedCard } from '../../components/ui/AnimatedCard';
 import { CardSkeleton } from '../../components/ui/LoadingSkeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { useToast } from '../../components/ui/Toast';
 
 const addFavoriteSchema = z.object({
   base_currency: z.string().length(3, 'Select a base currency'),
@@ -26,12 +28,14 @@ export function DashboardFavorites() {
   const addFavorite = useAddFavorite();
   const deleteFavorite = useDeleteFavorite();
   const { data: allRates } = useAllRates();
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   const {
     control,
     handleSubmit,
     reset,
+    getValues,
+    setValue,
     formState: { errors },
   } = useForm<AddFavoriteForm>({
     resolver: zodResolver(addFavoriteSchema),
@@ -58,11 +62,14 @@ export function DashboardFavorites() {
     (id: number) => {
       deleteFavorite.mutate(id, {
         onSuccess: () => {
-          setSuccessMsg('Pair removed from your favorites.');
+          toast.success('Favorite removed', 'Pair removed from your favorites.');
+        },
+        onError: () => {
+          toast.error('Failed to remove', 'Could not remove the favorite pair.');
         },
       });
     },
-    [deleteFavorite],
+    [deleteFavorite, toast],
   );
 
   const onSubmit = (data: AddFavoriteForm) => {
@@ -70,19 +77,15 @@ export function DashboardFavorites() {
       { base_currency: data.base_currency, target_currency: data.target_currency },
       {
         onSuccess: () => {
-          setSuccessMsg(`${data.base_currency}/${data.target_currency} added to your favorites.`);
+          toast.success('Favorite added', `${data.base_currency}/${data.target_currency} added to your favorites.`);
           reset();
         },
-        onError: () => {},
+        onError: () => {
+          toast.error('Failed to add', 'Could not add the favorite pair.');
+        },
       },
     );
   };
-
-  useEffect(() => {
-    if (!successMsg) return;
-    const timer = setTimeout(() => setSuccessMsg(null), 4000);
-    return () => clearTimeout(timer);
-  }, [successMsg]);
 
   return (
     <div className="space-y-6">
@@ -90,13 +93,6 @@ export function DashboardFavorites() {
         <h1>Favorite Currency Pairs</h1>
         <p>Track your monitored pairs with live or cached exchange rate data.</p>
       </div>
-
-      {successMsg && (
-        <div className="fav-toast animate-in fade-in slide-in-from-top-3 duration-300">
-          <Star className="text-amber-500 flex-shrink-0" size={16} />
-          <span className="text-sm font-semibold">{successMsg}</span>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <AnimatedCard delay={0} className="h-fit lg:col-span-1">
@@ -121,10 +117,10 @@ export function DashboardFavorites() {
               <button
                 type="button"
                 onClick={() => {
-                  const base = control._formValues.base_currency;
-                  const target = control._formValues.target_currency;
-                  control.setValue('base_currency', target);
-                  control.setValue('target_currency', base);
+                  const base = getValues('base_currency');
+                  const target = getValues('target_currency');
+                  setValue('base_currency', target);
+                  setValue('target_currency', base);
                 }}
                 className="fav-form__swap"
                 aria-label="Swap currencies"
@@ -202,15 +198,11 @@ export function DashboardFavorites() {
               </div>
             </AnimatedCard>
           ) : !favorites || favorites.length === 0 ? (
-            <AnimatedCard delay={0}>
-              <div className="fav-empty-state" data-testid="empty-favorites">
-                <Star className="text-slate-300 mb-1" size={36} />
-                <p className="text-sm font-semibold text-slate-500">No favorite pairs yet</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Use the form on the left to add a currency pair to your watchlist.
-                </p>
-              </div>
-            </AnimatedCard>
+            <EmptyState
+              icon={<Star size={36} />}
+              title="No favorite pairs yet"
+              description="Use the form on the left to add a currency pair to your watchlist."
+            />
           ) : (
             <>
               <div className="fav-count-bar">

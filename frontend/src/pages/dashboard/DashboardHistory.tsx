@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Download, Search, Trash2, Eye, ChevronUp, ChevronDown } from 'lucide-react';
+import { Download, Search, Trash2, Eye, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { useHistoryList, useDeleteHistoryRecord } from '../../hooks/useHistory';
 import { historyApi, HistoryExportParams, HistoryFilterParams } from '../../api/endpoints/history';
 import { CurrencyConversionOut } from '../../api/types';
 import { HistoryDetailModal } from '../../components/history/HistoryDetailModal';
-import { DeleteConfirmationDialog } from '../../components/history/DeleteConfirmationDialog';
+import { Dialog, DialogActions, DialogButton } from '../../components/ui/Dialog';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { useToast } from '../../components/ui/Toast';
 
 type SortField = 'converted_at' | 'amount' | 'rate' | 'result';
 type SortOrder = 'asc' | 'desc';
@@ -18,6 +20,7 @@ export function DashboardHistory() {
   const [selectedRecord, setSelectedRecord] = useState<CurrencyConversionOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const itemsPerPage = 6;
+  const toast = useToast();
 
   const filters: HistoryFilterParams = {
     page: currentPage,
@@ -67,7 +70,14 @@ export function DashboardHistory() {
   const handleDeleteConfirm = () => {
     if (deleteTarget !== null) {
       deleteMutation.mutate(deleteTarget, {
-        onSuccess: () => setDeleteTarget(null),
+        onSuccess: () => {
+          setDeleteTarget(null);
+          toast.success('Record deleted', `Conversion record #${deleteTarget} has been deleted.`);
+        },
+        onError: () => {
+          toast.error('Delete failed', 'Could not delete the conversion record.');
+          setDeleteTarget(null);
+        },
       });
     }
   };
@@ -98,8 +108,9 @@ export function DashboardHistory() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      toast.success('Export complete', 'CSV file has been downloaded.');
     } catch (err) {
-      console.error('Failed to export CSV', err);
+      toast.error('Export failed', 'Could not export history as CSV.');
     }
   };
 
@@ -228,8 +239,12 @@ export function DashboardHistory() {
                 </tr>
               ) : currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400 font-medium">
-                    No conversion logs matching the current filters.
+                  <td colSpan={7}>
+                    <EmptyState
+                      icon={<Search size={28} />}
+                      title="No conversions found"
+                      description="No conversion logs matching the current filters."
+                    />
                   </td>
                 </tr>
               ) : (
@@ -294,7 +309,7 @@ export function DashboardHistory() {
         </div>
 
         {!isLoading && !error && totalItems > itemsPerPage && (
-          <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
+          <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4 flex-col sm:flex-row gap-4">
             <span className="text-xs text-slate-500 font-medium">
               Showing {indexOfFirstItem + 1} to{' '}
               {Math.min(indexOfLastItem, totalItems)} of{' '}
@@ -349,14 +364,29 @@ export function DashboardHistory() {
         />
       )}
 
-      {deleteTarget !== null && (
-        <DeleteConfirmationDialog
-          recordId={deleteTarget}
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => setDeleteTarget(null)}
-          isPending={deleteMutation.isPending}
-        />
-      )}
+      <Dialog
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete Record"
+        description={`Are you sure you want to delete conversion record #${deleteTarget}? This action cannot be undone.`}
+        size="sm"
+        variant="destructive"
+        icon={<AlertTriangle size={20} />}
+        footer={
+          <DialogActions>
+            <DialogButton variant="default" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
+              Cancel
+            </DialogButton>
+            <DialogButton variant="destructive" onClick={handleDeleteConfirm} isLoading={deleteMutation.isPending}>
+              Delete
+            </DialogButton>
+          </DialogActions>
+        }
+      >
+        <p className="text-sm text-slate-500">
+          This will permanently remove the record from your history. You won't be able to recover it.
+        </p>
+      </Dialog>
     </div>
   );
 }
