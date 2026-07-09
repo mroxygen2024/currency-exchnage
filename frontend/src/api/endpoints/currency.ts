@@ -2,6 +2,8 @@ import { apiRequest } from '../client';
 import {
   currencyConversionOutSchema,
   currencyRateOutSchema,
+  supportedCurrenciesSchema,
+  currencySymbolsSchema,
 } from '../schemas/currency';
 import {
   CurrencyConversionOut,
@@ -32,20 +34,26 @@ export const currencyApi = {
    * Retrieve list of all supported 3-letter currency codes.
    */
   async getSupported(): Promise<string[]> {
-    return apiRequest<string[]>({
-      url: '/currencies/supported',
-      method: 'GET',
-    });
+    return apiRequest<string[]>(
+      {
+        url: '/currencies/supported',
+        method: 'GET',
+      },
+      supportedCurrenciesSchema
+    );
   },
 
   /**
    * Retrieve map of currency codes to their full names (e.g. { "USD": "United States Dollar" }).
    */
   async getSymbols(): Promise<Record<string, string>> {
-    return apiRequest<Record<string, string>>({
-      url: '/currencies/symbols',
-      method: 'GET',
-    });
+    return apiRequest<Record<string, string>>(
+      {
+        url: '/currencies/symbols',
+        method: 'GET',
+      },
+      currencySymbolsSchema
+    );
   },
 
   /**

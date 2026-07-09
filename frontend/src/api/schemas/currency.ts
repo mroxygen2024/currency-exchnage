@@ -71,3 +71,7 @@ export const currencyTrendsOutSchema = z.object({
   pages: z.number().int().nonnegative(),
   stats: trendStatsSchema,
 });
+
+export const supportedCurrenciesSchema = z.array(z.string());
+export const currencySymbolsSchema = z.record(z.string(), z.string());
+

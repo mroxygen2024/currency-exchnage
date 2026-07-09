@@ -1,0 +1,73 @@
+import { useQuery } from '@tanstack/react-query';
+import { currencyApi } from '../api/endpoints/currency';
+import { CurrencyRateOut } from '../api/types';
+import { ApiError } from '../api/errors';
+
+export const currencyKeys = {
+  all: ['currency'] as const,
+  supported: () => [...currencyKeys.all, 'supported'] as const,
+  symbols: () => [...currencyKeys.all, 'symbols'] as const,
+  rates: () => [...currencyKeys.all, 'rates'] as const,
+  rate: (base: string, target: string) => [...currencyKeys.rates(), base.toUpperCase(), target.toUpperCase()] as const,
+};
+
+/**
+ * Hook to retrieve the list of supported 3-letter currency codes.
+ * Caches the response indefinitely as currency support is highly static.
+ */
+export function useSupportedCurrencies() {
+  return useQuery<string[], ApiError>({
+    queryKey: currencyKeys.supported(),
+    queryFn: () => currencyApi.getSupported(),
+    staleTime: Infinity, // Supported currencies don't change frequently
+    gcTime: 24 * 60 * 60 * 1000, // Keep in garbage collection cache for 24 hours
+    retry: 2,
+  });
+}
+
+/**
+ * Hook to retrieve the map of currency codes to full names (e.g. { USD: "United States Dollar" }).
+ * Caches the response indefinitely as names are static.
+ */
+export function useCurrencySymbols() {
+  return useQuery<Record<string, string>, ApiError>({
+    queryKey: currencyKeys.symbols(),
+    queryFn: () => currencyApi.getSymbols(),
+    staleTime: Infinity,
+    gcTime: 24 * 60 * 60 * 1000,
+    retry: 2,
+  });
+}
+
+/**
+ * Hook to retrieve all currency exchange rates currently available.
+ * Caches rates with a shorter staleTime since exchange rates are dynamic.
+ */
+export function useAllRates() {
+  return useQuery<CurrencyRateOut[], ApiError>({
+    queryKey: currencyKeys.rates(),
+    queryFn: () => currencyApi.getAllRates(),
+    staleTime: 30 * 1000, // 30 seconds stale time
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+}
+
+/**
+ * Hook to retrieve the exchange rate for a specific base/target currency pair.
+ * Only runs if both base and target are valid.
+ */
+export function useCurrencyRate(base?: string, target?: string) {
+  const cleanBase = base?.trim().toUpperCase();
+  const cleanTarget = target?.trim().toUpperCase();
+  const isValidPair = !!cleanBase && !!cleanTarget && cleanBase.length === 3 && cleanTarget.length === 3;
+
+  return useQuery<CurrencyRateOut, ApiError>({
+    queryKey: currencyKeys.rate(cleanBase || '', cleanTarget || ''),
+    queryFn: () => currencyApi.getRate(cleanBase!, cleanTarget!),
+    enabled: isValidPair,
+    staleTime: 30 * 1000, // 30 seconds stale time
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+}

@@ -11,6 +11,9 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react';
+import { CurrencySelector } from '../../components/CurrencySelector';
+import { useCurrencyRate } from '../../hooks/useCurrency';
+
 
 const FALLBACK_RATES: Record<string, number> = {
   USD: 1.0,
@@ -69,14 +72,22 @@ export function DashboardOverview() {
     }
   }, []);
 
+  // Live rate query
+  const { data: liveRateData } = useCurrencyRate(fromCurrency, toCurrency);
+
   // Recalculate converter rate
   useEffect(() => {
-    const rFrom = FALLBACK_RATES[fromCurrency] ?? 1.0;
-    const rTo = FALLBACK_RATES[toCurrency] ?? 1.0;
-    const calcRate = rTo / rFrom;
-    setRate(calcRate);
-    setConvertedAmount(Number((amount * calcRate).toFixed(4)));
-  }, [amount, fromCurrency, toCurrency]);
+    if (liveRateData && liveRateData.rate) {
+      setRate(liveRateData.rate);
+      setConvertedAmount(Number((amount * liveRateData.rate).toFixed(4)));
+    } else {
+      const rFrom = FALLBACK_RATES[fromCurrency] ?? 1.0;
+      const rTo = FALLBACK_RATES[toCurrency] ?? 1.0;
+      const calcRate = rTo / rFrom;
+      setRate(calcRate);
+      setConvertedAmount(Number((amount * calcRate).toFixed(4)));
+    }
+  }, [amount, fromCurrency, toCurrency, liveRateData]);
 
   const handleSwap = () => {
     const temp = fromCurrency;
@@ -303,52 +314,34 @@ export function DashboardOverview() {
               />
             </div>
 
-            <div className="grid grid-cols-5 gap-2 items-center">
+            <div className="grid grid-cols-5 gap-4 items-end">
               <div className="col-span-2">
-                <label htmlFor="from" className="block text-xs font-bold text-slate-600 mb-1.5">
-                  From
-                </label>
-                <select
-                  id="from"
-                  className="w-100 h-11 px-2 border border-slate-200 rounded-xl bg-white/70 focus:outline-none focus:border-teal-600 font-bold"
+                <CurrencySelector
+                  label="From"
                   value={fromCurrency}
-                  onChange={(e) => setFromCurrency(e.target.value)}
-                >
-                  {Object.keys(FALLBACK_RATES).map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setFromCurrency}
+                  exclude={[toCurrency]}
+                />
               </div>
 
-              <div className="flex justify-center pt-5">
+              <div className="flex justify-center pb-1">
                 <button
                   type="button"
                   onClick={handleSwap}
-                  className="w-9 h-9 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-teal-600 transition-colors shadow-md transform hover:rotate-180 duration-300"
+                  className="w-10 h-10 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-teal-600 transition-colors shadow-md transform hover:rotate-180 duration-300 cursor-pointer"
                   aria-label="Swap Currencies"
                 >
-                  <ArrowRightLeft size={14} />
+                  <ArrowRightLeft size={16} />
                 </button>
               </div>
 
               <div className="col-span-2">
-                <label htmlFor="to" className="block text-xs font-bold text-slate-600 mb-1.5">
-                  To
-                </label>
-                <select
-                  id="to"
-                  className="w-100 h-11 px-2 border border-slate-200 rounded-xl bg-white/70 focus:outline-none focus:border-teal-600 font-bold"
+                <CurrencySelector
+                  label="To"
                   value={toCurrency}
-                  onChange={(e) => setToCurrency(e.target.value)}
-                >
-                  {Object.keys(FALLBACK_RATES).map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setToCurrency}
+                  exclude={[fromCurrency]}
+                />
               </div>
             </div>
 

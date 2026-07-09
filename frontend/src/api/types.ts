@@ -40,6 +40,8 @@ export type CurrencyAnalyticsOut = z.infer<typeof currencySchemas.currencyAnalyt
 export type TrendItem = z.infer<typeof currencySchemas.trendItemSchema>;
 export type TrendStats = z.infer<typeof currencySchemas.trendStatsSchema>;
 export type CurrencyTrendsOut = z.infer<typeof currencySchemas.currencyTrendsOutSchema>;
+export type SupportedCurrencies = z.infer<typeof currencySchemas.supportedCurrenciesSchema>;
+export type CurrencySymbols = z.infer<typeof currencySchemas.currencySymbolsSchema>;
 
 // --- Favorite Types ---
 export type FavoritePairCreate = z.infer<typeof favoriteSchemas.favoritePairCreateSchema>;
