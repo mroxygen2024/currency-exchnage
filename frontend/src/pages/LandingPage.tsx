@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Activity,
   ArrowRight,
   ArrowRightLeft,
   CheckCircle2,
@@ -9,45 +8,20 @@ import {
   Coins,
   Globe,
   LayoutDashboard,
-  Lock,
   LogOut,
   Menu,
-  RefreshCw,
   ShieldCheck,
-  Terminal,
-  User,
+  TrendingUp,
   X,
 } from 'lucide-react';
 
 import { useAuth } from '../auth/AuthContext';
 import { currencyApi } from '../api/endpoints/currency';
 
-// Fallback rates if backend is down or loading
-const FALLBACK_SYMBOLS: Record<string, string> = {
-  USD: 'United States Dollar',
-  EUR: 'Euro',
-  GBP: 'British Pound',
-  JPY: 'Japanese Yen',
-  CAD: 'Canadian Dollar',
-  AUD: 'Australian Dollar',
-  CHF: 'Swiss Franc',
-};
-
-const FALLBACK_RATES: Record<string, number> = {
-  USD: 1.0,
-  EUR: 0.92,
-  GBP: 0.78,
-  JPY: 161.4,
-  CAD: 1.36,
-  AUD: 1.49,
-  CHF: 0.89,
-};
-
 export function LandingPage() {
   const navigate = useNavigate();
   const { isAuthenticated, logout } = useAuth();
 
-  // Scroll listener for sticky header
   const [isScrolled, setIsScrolled] = useState(false);
   useEffect(() => {
     const handleScroll = () => {
@@ -57,12 +31,10 @@ export function LandingPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Responsive Drawer Menu State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Conversion Widget State
-  const [symbols, setSymbols] = useState<Record<string, string>>(FALLBACK_SYMBOLS);
-  const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(Object.keys(FALLBACK_SYMBOLS));
+  const [symbols, setSymbols] = useState<Record<string, string>>({});
+  const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>([]);
   const [amount, setAmount] = useState<number>(1000);
   const [fromCurrency, setFromCurrency] = useState<string>('USD');
   const [toCurrency, setToCurrency] = useState<string>('EUR');
@@ -71,7 +43,6 @@ export function LandingPage() {
   const [isConverting, setIsConverting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  // Live rates table state
   const [ratesTableData, setRatesTableData] = useState<Array<{
     pair: string;
     from: string;
@@ -83,12 +54,10 @@ export function LandingPage() {
   }>>([]);
   const [isLoadingRatesTable, setIsLoadingRatesTable] = useState(true);
 
-  // FAQ Accordion State
   const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(null);
 
   const heroCalculatorRef = useRef<HTMLDivElement>(null);
 
-  // Fetch supported symbols
   useEffect(() => {
     async function loadSymbols() {
       try {
@@ -100,14 +69,13 @@ export function LandingPage() {
         if (fetchedSupported && fetchedSupported.length > 0) {
           setSupportedCurrencies(fetchedSupported);
         }
-      } catch (err) {
-        console.warn('Failed to load supported currencies from API, using local fallbacks.', err);
+      } catch {
+        // Keep empty state
       }
     }
     void loadSymbols();
   }, []);
 
-  // Fetch active conversion
   const handleConvert = async (
     currentAmount: number,
     currentFrom: string,
@@ -131,25 +99,14 @@ export function LandingPage() {
       setConvertedAmount(response.result);
       setExchangeRate(response.rate);
       setLastUpdated(new Date().toLocaleTimeString());
-    } catch (err) {
-      console.warn('API conversion failed, utilizing client fallback.', err);
-      // Fallback conversion logic
-      const rateFrom = FALLBACK_RATES[currentFrom] ?? 1.0;
-      const rateTo = FALLBACK_RATES[currentTo] ?? 1.0;
-      // Convert to base (USD) then to target
-      const usdAmount = currentAmount / rateFrom;
-      const finalAmount = usdAmount * rateTo;
-      const fallbackRate = rateTo / rateFrom;
-
-      setConvertedAmount(Number(finalAmount.toFixed(4)));
-      setExchangeRate(Number(fallbackRate.toFixed(6)));
-      setLastUpdated(new Date().toLocaleTimeString() + ' (Local calculation)');
+    } catch {
+      setConvertedAmount(null);
+      setExchangeRate(null);
     } finally {
       setIsConverting(false);
     }
   };
 
-  // Convert when params change
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       void handleConvert(amount, fromCurrency, toCurrency);
@@ -158,12 +115,10 @@ export function LandingPage() {
     return () => clearTimeout(delayDebounceFn);
   }, [amount, fromCurrency, toCurrency]);
 
-  // Load major rates table mock / live data
   useEffect(() => {
     async function loadRatesTable() {
       setIsLoadingRatesTable(true);
       try {
-        // Build table from major pairs
         const pairs = [
           { from: 'EUR', to: 'USD', trend: 'up' as const, change: '+0.24%', sparkline: 'M0 16 Q20 5, 40 18 T80 4' },
           { from: 'GBP', to: 'USD', trend: 'up' as const, change: '+0.12%', sparkline: 'M0 18 Q20 10, 40 8 T80 6' },
@@ -175,7 +130,6 @@ export function LandingPage() {
         const resolvedPairs = await Promise.all(
           pairs.map(async (p) => {
             try {
-              // Try getting rate from API
               const rateData = await currencyApi.getRate(p.from, p.to);
               return {
                 pair: `${p.from}/${p.to}`,
@@ -187,15 +141,11 @@ export function LandingPage() {
                 sparkline: p.sparkline,
               };
             } catch {
-              // Fallback calculations
-              const rateFrom = FALLBACK_RATES[p.from] ?? 1.0;
-              const rateTo = FALLBACK_RATES[p.to] ?? 1.0;
-              const calcRate = rateTo / rateFrom;
               return {
                 pair: `${p.from}/${p.to}`,
                 from: p.from,
                 to: p.to,
-                rate: Number(calcRate.toFixed(5)),
+                rate: 0,
                 trend: p.trend,
                 change: p.change,
                 sparkline: p.sparkline,
@@ -204,8 +154,8 @@ export function LandingPage() {
           })
         );
         setRatesTableData(resolvedPairs);
-      } catch (err) {
-        console.error('Failed to populate rates table', err);
+      } catch {
+        // Keep empty state
       } finally {
         setIsLoadingRatesTable(false);
       }
@@ -227,7 +177,6 @@ export function LandingPage() {
   const scrollToCalculator = () => {
     if (heroCalculatorRef.current) {
       heroCalculatorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Focus on amount input for accessibility
       const amountInput = heroCalculatorRef.current.querySelector('input');
       if (amountInput) {
         amountInput.focus();
@@ -243,31 +192,29 @@ export function LandingPage() {
 
   const faqs = [
     {
-      q: 'How secure is the bearer token authentication system?',
-      a: 'Extremely secure. The application stores access tokens temporarily in memory and uses modern HTTP refresh token rotation. Requests securely append the authorization headers automatically to maintain type-safe validation checkpoints with the backend FastAPI architecture.',
+      q: 'How are exchange rates calculated?',
+      r: 'Rates are sourced from trusted global currency providers and updated in real-time. Our platform ensures you always see the latest market prices.',
     },
     {
-      q: 'What is Refresh Token Rotation and how does it protect my session?',
-      a: 'Whenever your short-lived access token expires, the application automatically requests a rotation from the backend using a secure, HTTP-only refresh token. This provides automated session survival and security rotation without logging you out, preventing session hijacking.',
+      q: 'Is my financial data secure?',
+      r: 'Absolutely. We use bank-level encryption and secure authentication to protect your account, conversion history, and personal information.',
     },
     {
-      q: 'Are the exchange rates in the calculator real-time?',
-      a: 'Yes. The platform communicates directly with our backend currency providers, caching live rates inside a Redis layer to guarantee low latency. In the event of network disruption, the client utilizes robust local calculations to ensure zero interface down-time.',
+      q: 'Can I track my conversion history?',
+      r: 'Yes. Every conversion you make is logged with full details including rates, timestamps, and amounts. You can export your history anytime.',
     },
     {
-      q: 'Can guest accounts access all conversion features?',
-      a: 'Guests can perform instant, real-time currency calculations. However, signing up unlocks exclusive professional features: authenticated conversion history logging, persistent profile customization, live web-sockets sync, and target alerts.',
+      q: 'What features are available after signing up?',
+      r: 'Registered users get access to conversion history, favorite currency pairs, real-time alerts, analytics dashboards, and portfolio tracking.',
     },
   ];
 
   return (
     <div className="animate-fade-in" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Skip Navigation Link for Accessibility */}
       <a href="#main-content" className="sr-only">
         Skip to main content
       </a>
 
-      {/* Navigation Header */}
       <header className={`nav-header ${isScrolled ? 'nav-header--scrolled' : ''}`}>
         <div className="nav-container">
           <Link to="/" className="nav-logo" aria-label="AeroExchange Home">
@@ -275,15 +222,12 @@ export function LandingPage() {
             <span>AeroExchange</span>
           </Link>
 
-          {/* Desktop Navigation Links */}
           <nav className="nav-menu" aria-label="Desktop Navigation">
             <a href="#rates" className="nav-link">Rates</a>
             <a href="#features" className="nav-link">Features</a>
-            <a href="#architecture" className="nav-link">Architecture</a>
             <a href="#faq" className="nav-link">FAQ</a>
           </nav>
 
-          {/* Header Action Buttons */}
           <div className="nav-actions">
             {isAuthenticated ? (
               <>
@@ -313,7 +257,6 @@ export function LandingPage() {
             )}
           </div>
 
-          {/* Mobile Hamburger Trigger */}
           <button
             type="button"
             className="hamburger-btn"
@@ -326,7 +269,6 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Mobile Drawer Overlay */}
       <div
         className={`mobile-nav-drawer ${isMobileMenuOpen ? 'mobile-nav-drawer--open' : ''}`}
         aria-hidden={!isMobileMenuOpen}
@@ -338,9 +280,6 @@ export function LandingPage() {
             </li>
             <li>
               <a href="#features" className="nav-link">Features</a>
-            </li>
-            <li>
-              <a href="#architecture" className="nav-link">Architecture</a>
             </li>
             <li>
               <a href="#faq" className="nav-link">FAQ</a>
@@ -377,24 +316,20 @@ export function LandingPage() {
         </div>
       </div>
 
-      {/* Main Content Area */}
       <main id="main-content" style={{ flexGrow: 1 }}>
         
-        {/* HERO SECTION */}
         <section className="landing-shell">
           <div className="hero-grid">
-            {/* Hero Left Content */}
             <div className="hero-content animate-slide-up">
               <div className="hero-badge">
                 <Coins size={16} />
-                <span>Next-Gen FX Architecture</span>
+                <span>Trusted by traders worldwide</span>
               </div>
               <h1>
-                Institutional-Grade <span>Currency Exchange</span>
+                Live Currency Exchange <span>at Your Fingertips</span>
               </h1>
               <p>
-                Experience ultra low-latency conversion built on FastAPI, Redis Cache,
-                and high-security bearer authentication. Fully responsive, highly accessible.
+                Convert currencies in real-time with institutional-grade accuracy. Track market trends, build your portfolio, and never miss a rate movement.
               </p>
               
               <div className="hero-cta-group">
@@ -403,42 +338,39 @@ export function LandingPage() {
                   onClick={scrollToCalculator}
                   className="primary-button"
                 >
-                  Convert Now
+                  Start Converting
                   <ArrowRight size={16} />
                 </button>
-                <a href="#architecture" className="secondary-button">
-                  Tech Stack
+                <a href="#features" className="secondary-button">
+                  Learn More
                 </a>
               </div>
 
-              {/* Stats Block */}
               <div className="hero-stats">
                 <div className="stat-item">
                   <span className="stat-val">150+</span>
-                  <span className="stat-lbl">Supported Pairs</span>
+                  <span className="stat-lbl">Supported Currencies</span>
                 </div>
                 <div className="stat-item">
-                  <span className="stat-val">&lt;50ms</span>
-                  <span className="stat-lbl">Redis Cache Speed</span>
+                  <span className="stat-val">Real-time</span>
+                  <span className="stat-lbl">Live Market Rates</span>
                 </div>
                 <div className="stat-item">
-                  <span className="stat-val">100%</span>
-                  <span className="stat-lbl">Token Security</span>
+                  <span className="stat-val">256-bit</span>
+                  <span className="stat-lbl">Data Encryption</span>
                 </div>
               </div>
             </div>
 
-            {/* Hero Right Calculator Widget */}
             <div ref={heroCalculatorRef} className="animate-slide-up" style={{ animationDelay: '0.15s' }}>
               <div className="converter-card">
                 <h2 className="converter-card__title">Exchange Calculator</h2>
-                <p className="converter-card__desc">Enter source amount and target currency pair</p>
+                <p className="converter-card__desc">Enter an amount and select currencies</p>
 
-                {/* Amount Field */}
                 <div className="converter-row">
                   <label htmlFor="convert-amount">
                     <span>Send Amount</span>
-                    {isConverting && <span className="eyebrow" style={{ fontSize: '0.7rem' }}>Syncing rates...</span>}
+                    {isConverting && <span className="eyebrow" style={{ fontSize: '0.7rem' }}>Fetching rates...</span>}
                   </label>
                   <div className="converter-input-wrapper">
                     <input
@@ -450,6 +382,7 @@ export function LandingPage() {
                       value={amount}
                       onChange={(e) => setAmount(Number(e.target.value))}
                       disabled={isConverting}
+                      aria-label="Amount to convert"
                     />
                     <select
                       aria-label="Source Currency"
@@ -466,20 +399,18 @@ export function LandingPage() {
                   </div>
                 </div>
 
-                {/* Swap Icon */}
                 <div className="swap-btn-container">
                   <button
                     type="button"
                     className="swap-btn"
                     onClick={handleSwap}
                     disabled={isConverting}
-                    aria-label="Swap Currencies"
+                    aria-label="Swap currencies"
                   >
                     <ArrowRightLeft size={16} />
                   </button>
                 </div>
 
-                {/* Target Result Field */}
                 <div className="converter-row">
                   <label htmlFor="convert-result">
                     <span>Receive Amount</span>
@@ -492,6 +423,7 @@ export function LandingPage() {
                       placeholder="0.00"
                       value={convertedAmount !== null ? convertedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : ''}
                       aria-live="polite"
+                      aria-label="Converted amount"
                     />
                     <select
                       aria-label="Target Currency"
@@ -508,7 +440,6 @@ export function LandingPage() {
                   </div>
                 </div>
 
-                {/* Rate details overlay */}
                 {exchangeRate && (
                   <div className="rate-details animate-slide-down">
                     <div>
@@ -522,7 +453,6 @@ export function LandingPage() {
                   </div>
                 )}
 
-                {/* Action for guests */}
                 {!isAuthenticated && (
                   <Link
                     to="/auth/register"
@@ -537,12 +467,11 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* RATES TABLE SECTION */}
         <section id="rates" className="rates-section">
           <div className="section-header">
             <span className="eyebrow">Market Rates</span>
             <h2>Top Currency Pairs</h2>
-            <p>Monitor top currencies with institutional precision and instant calculator sync.</p>
+            <p>Monitor major currencies with real-time rates and instant calculator integration.</p>
           </div>
 
           <div className="rates-table-container">
@@ -552,14 +481,14 @@ export function LandingPage() {
                 <p className="eyebrow">Fetching market rates...</p>
               </div>
             ) : (
-              <table className="rates-table">
+              <table className="rates-table" role="table" aria-label="Exchange rates for major currency pairs">
                 <thead>
                   <tr>
-                    <th>Currency Pair</th>
-                    <th>Exchange Rate</th>
-                    <th>24h Trend</th>
-                    <th>Weekly Trend</th>
-                    <th>Action</th>
+                    <th scope="col">Currency Pair</th>
+                    <th scope="col">Exchange Rate</th>
+                    <th scope="col">24h Trend</th>
+                    <th scope="col">Weekly Trend</th>
+                    <th scope="col">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -575,7 +504,7 @@ export function LandingPage() {
                         </div>
                       </td>
                       <td style={{ fontWeight: 700, color: '#10354a' }}>
-                        {row.rate.toFixed(5)}
+                        {row.rate > 0 ? row.rate.toFixed(5) : '--'}
                       </td>
                       <td>
                         <span className={`trend-badge ${row.trend === 'up' ? 'trend-badge--up' : 'trend-badge--down'}`}>
@@ -605,12 +534,11 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* FEATURES BENTO GRID SECTION */}
         <section id="features" className="features-section">
           <div className="section-header">
             <span className="eyebrow">Platform Capabilities</span>
-            <h2>Architected for Speed &amp; Security</h2>
-            <p>Our platform handles token credentials, session rotation, and calculations dynamically.</p>
+            <h2>Built for Speed &amp; Security</h2>
+            <p>Professional-grade currency conversion with real-time data and secure authentication.</p>
           </div>
 
           <div className="bento-grid">
@@ -618,112 +546,49 @@ export function LandingPage() {
               <div className="bento-card__icon">
                 <ShieldCheck size={22} />
               </div>
-              <h3>Bearer Token Authentication Flow</h3>
+              <h3>Secure Authentication</h3>
               <p>
-                API requests automatically attach short-lived JSON Web Tokens (JWT) inside authorization headers.
-                Strict validation checks exist across all secure endpoints to protect user converter logs and history.
+                Your account is protected with secure, encrypted authentication. Sessions persist safely across visits while keeping your data fully protected.
               </p>
             </article>
 
             <article className="bento-card">
               <div className="bento-card__icon">
-                <RefreshCw size={22} />
+                <TrendingUp size={22} />
               </div>
-              <h3>Zero-Interruption Rotation</h3>
+              <h3>Live Market Data</h3>
               <p>
-                Session cookies rotate seamlessly. If an access key expires, the frontend client requests renewal
-                and retries pending calls immediately in place.
+                Access real-time exchange rates updated continuously from global currency markets with sub-second latency.
               </p>
             </article>
 
             <article className="bento-card">
               <div className="bento-card__icon">
-                <Lock size={22} />
+                <Globe size={22} />
               </div>
-              <h3>Persistent Auth Sessions</h3>
+              <h3>150+ Currencies</h3>
               <p>
-                Credentials securely persist across tabs and page reloads, using encrypted cookies and internal state management.
+                Convert between major, minor, and exotic currencies from over 150 countries worldwide.
               </p>
             </article>
 
             <article className="bento-card bento-card--col-2">
               <div className="bento-card__icon">
-                <Globe size={22} />
+                <CheckCircle2 size={22} />
               </div>
-              <h3>Low-Latency Redis Cache Layer</h3>
+              <h3>Conversion History &amp; Analytics</h3>
               <p>
-                FastAPI endpoints queue active exchange rates in memory via Redis, lowering API latency to under 50ms and preventing rate limits.
+                Every conversion is logged with full details. Track your activity, analyze trends, and export your history as CSV anytime.
               </p>
             </article>
           </div>
         </section>
 
-        {/* SECURITY & ARCHITECTURE SHOWCASE */}
-        <section id="architecture" className="architecture-section">
-          <div className="section-header">
-            <span className="eyebrow">System Topology</span>
-            <h2>API Integration Infrastructure</h2>
-            <p>Review the client-server data flow representing our token refresh and query execution system.</p>
-          </div>
-
-          <div className="arch-diagram-wrapper">
-            <div className="arch-flow">
-              <div className="arch-node">
-                <User size={24} />
-                <strong>Client React SPA</strong>
-                <span>Axios interceptors</span>
-              </div>
-              
-              <div className="arch-connector">
-                <span className="arch-connector__label">Bearer JWT</span>
-              </div>
-
-              <div className="arch-node">
-                <Terminal size={24} />
-                <strong>FastAPI Gateway</strong>
-                <span>CORS &amp; Zod Validation</span>
-              </div>
-
-              <div className="arch-connector">
-                <span className="arch-connector__label">In-Memory Sync</span>
-              </div>
-
-              <div className="arch-node">
-                <Activity size={24} />
-                <strong>Redis Cache</strong>
-                <span>Cached Rates &amp; Queues</span>
-              </div>
-            </div>
-
-            <div className="arch-details-grid">
-              <div className="arch-detail-item">
-                <h4>
-                  <CheckCircle2 size={16} />
-                  Axios Interceptors
-                </h4>
-                <p>
-                  Handles automated request enrichment with authorization credentials, and handles asynchronous queueing of failed API calls.
-                </p>
-              </div>
-              <div className="arch-detail-item">
-                <h4>
-                  <CheckCircle2 size={16} />
-                  FastAPI Architecture
-                </h4>
-                <p>
-                  Built on high-concurrency Python ASGI principles. Performs runtime structural schema checking with pydantic schemas.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* FAQ ACCORDION SECTION */}
         <section id="faq" className="faq-section">
           <div className="section-header">
             <span className="eyebrow">Got Questions?</span>
             <h2>Frequently Asked Questions</h2>
-            <p>Everything you need to know about security tokens, rate limits, and conversions.</p>
+            <p>Everything you need to know about using AeroExchange.</p>
           </div>
 
           <div className="faq-list">
@@ -750,7 +615,7 @@ export function LandingPage() {
                     aria-hidden={!isExpanded}
                   >
                     <div className="faq-content-inner">
-                      <p>{faq.a}</p>
+                      <p>{faq.r}</p>
                     </div>
                   </div>
                 </article>
@@ -761,7 +626,6 @@ export function LandingPage() {
 
       </main>
 
-      {/* FOOTER */}
       <footer className="footer">
         <div className="footer-container">
           <div className="footer-brand">
@@ -770,7 +634,7 @@ export function LandingPage() {
               <span>AeroExchange</span>
             </Link>
             <p>
-              Demo currency conversion system illustrating JWT authorization, Axios automatic token renewal, and FastAPI database bindings.
+              Professional currency exchange platform with real-time rates, secure authentication, and comprehensive analytics.
             </p>
           </div>
 
@@ -779,31 +643,31 @@ export function LandingPage() {
             <ul className="footer-links">
               <li><a href="#rates">Live Rates</a></li>
               <li><a href="#features">Features</a></li>
-              <li><a href="#architecture">Architecture</a></li>
+              <li><a href="#faq">FAQ</a></li>
             </ul>
           </div>
 
           <div className="footer-col">
-            <h5>Resources</h5>
+            <h5>Account</h5>
             <ul className="footer-links">
-              <li><a href="#faq">FAQ</a></li>
               <li><Link to="/auth/login">Sign In</Link></li>
-              <li><Link to="/auth/register">Sign Up</Link></li>
+              <li><Link to="/auth/register">Create Account</Link></li>
+              <li><Link to="/dashboard">Dashboard</Link></li>
             </ul>
           </div>
 
           <div className="footer-col">
             <h5>Security</h5>
             <ul className="footer-links">
-              <li><span style={{ fontSize: '0.9rem' }}>JWT Bearer Auth</span></li>
-              <li><span style={{ fontSize: '0.9rem' }}>Refresh Rotation</span></li>
-              <li><span style={{ fontSize: '0.9rem' }}>Rate Limit Protection</span></li>
+              <li><span>Encrypted Authentication</span></li>
+              <li><span>Secure Session Management</span></li>
+              <li><span>Data Protection</span></li>
             </ul>
           </div>
         </div>
 
         <div className="footer-bottom">
-          <p>© {new Date().getFullYear()} AeroExchange. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} AeroExchange. All rights reserved.</p>
           <div className="footer-bottom-links">
             <a href="#">Privacy Policy</a>
             <a href="#">Terms of Service</a>

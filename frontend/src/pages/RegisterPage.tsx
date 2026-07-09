@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 
 import { useAuth } from '../auth/AuthContext';
 import { AuthShell } from '../components/auth/AuthShell';
+import { PasswordInput } from '../components/ui/PasswordInput';
 import { ApiError } from '../api/errors';
 import { registerRequestSchema } from '../api/schemas/auth';
 import type { RegisterRequest } from '../api/types';
@@ -43,7 +44,7 @@ export function RegisterPage() {
       } else if (error instanceof Error) {
         setFormError(error.message);
       } else {
-        setFormError('Registration failed.');
+        setFormError('Registration failed. Please try again.');
       }
     } finally {
       setIsSubmitting(false);
@@ -52,12 +53,12 @@ export function RegisterPage() {
 
   return (
     <AuthShell
-      eyebrow="Create account"
-      title="Register a new session"
-      description="Create a profile, sign in immediately, and keep your access token persisted for future visits."
+      eyebrow="Get started"
+      title="Create your account"
+      description="Start tracking exchange rates, saving conversions, and building your portfolio."
       footer={
         <p>
-          Already have an account? <Link to="/auth/login">Sign in</Link>.
+          Already have an account? <Link to="/auth/login">Sign in instead</Link>.
         </p>
       }
     >
@@ -125,23 +126,15 @@ export function RegisterPage() {
         </div>
 
         <div>
-          <label htmlFor="password">Password</label>
-          <div className="auth-input-wrapper">
-            <input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              aria-invalid={errors.password ? 'true' : 'false'}
-              aria-describedby={errors.password ? 'password-error' : undefined}
-              placeholder="••••••••"
-              {...register('password')}
-            />
-          </div>
-          {errors.password ? (
-            <span id="password-error" className="field-error" role="alert">
-              {errors.password.message}
-            </span>
-          ) : null}
+          <PasswordInput
+            id="password"
+            label="Password"
+            autoComplete="new-password"
+            placeholder="Create a strong password"
+            error={errors.password?.message}
+            errorId="password-error"
+            {...register('password')}
+          />
         </div>
 
         {(formError || authError) && (

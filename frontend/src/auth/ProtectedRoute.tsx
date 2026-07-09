@@ -11,7 +11,7 @@ function RouteLoading({ label }: { label: string }) {
         </div>
         <p className="eyebrow">Session</p>
         <h1>{label}</h1>
-        <p>Checking your bearer token and rotating refresh credentials if needed.</p>
+        <p>Verifying your session and restoring secure access.</p>
       </section>
     </main>
   );

@@ -65,7 +65,7 @@ export function DashboardFavorites() {
           toast.success('Favorite removed', 'Pair removed from your favorites.');
         },
         onError: () => {
-          toast.error('Failed to remove', 'Could not remove the favorite pair.');
+          toast.error('Remove failed', 'Unable to remove favorite. Please try again.');
         },
       });
     },
@@ -81,7 +81,7 @@ export function DashboardFavorites() {
           reset();
         },
         onError: () => {
-          toast.error('Failed to add', 'Could not add the favorite pair.');
+          toast.error('Add failed', 'Unable to add favorite. Please try again.');
         },
       },
     );
@@ -91,7 +91,7 @@ export function DashboardFavorites() {
     <div className="space-y-6">
       <div className="dashboard-page-title">
         <h1>Favorite Currency Pairs</h1>
-        <p>Track your monitored pairs with live or cached exchange rate data.</p>
+        <p>Track your favorite currency pairs with live exchange rates and price movements.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -151,7 +151,7 @@ export function DashboardFavorites() {
             {addFavorite.isError && (
               <div className="fav-form__api-error" data-testid="api-error">
                 <AlertTriangle size={14} />
-                <span>{addFavorite.error?.message || 'Failed to add favorite.'}</span>
+                <span>Unable to add favorite. Please try again.</span>
               </div>
             )}
 
@@ -185,8 +185,8 @@ export function DashboardFavorites() {
             <AnimatedCard delay={0}>
               <div className="fav-empty-state">
                 <AlertTriangle size={28} className="text-rose-400" />
-                <p className="text-sm font-semibold text-rose-700">Failed to load favorites</p>
-                <p className="text-xs text-rose-500">{favsError.message}</p>
+                <p className="text-sm font-semibold text-rose-700">Unable to load favorites</p>
+                <p className="text-xs text-rose-500">Please try again later.</p>
                 <button
                   type="button"
                   onClick={() => refetchFavs()}
@@ -201,7 +201,7 @@ export function DashboardFavorites() {
             <EmptyState
               icon={<Star size={36} />}
               title="No favorite pairs yet"
-              description="Use the form on the left to add a currency pair to your watchlist."
+              description="Add a currency pair using the form on the left to start tracking rates."
             />
           ) : (
             <>

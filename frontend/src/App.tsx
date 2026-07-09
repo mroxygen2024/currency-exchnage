@@ -23,8 +23,8 @@ function AppLoading() {
           <Loader2 size={32} className="animate-spin text-teal-600" />
         </div>
         <p className="eyebrow">Loading</p>
-        <h1>Preparing the application</h1>
-        <p>Initializing bearer auth, restoring the session, and loading protected routes.</p>
+        <h1>Preparing your experience</h1>
+        <p>Setting up your secure session and loading market data.</p>
       </section>
     </main>
   );

@@ -13,7 +13,6 @@ import {
   RefreshCw,
   Star,
   TrendingUp,
-  Wallet,
   X,
   AlertTriangle,
   Search,
@@ -46,12 +45,6 @@ const conversionSchema = z.object({
 
 type ConversionFormValues = z.infer<typeof conversionSchema>;
 
-const PORTFOLIO_ALLOCATION: Record<string, number> = {
-  USD: 5400,
-  EUR: 6200,
-  GBP: 1650,
-};
-
 export function DashboardOverview() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -70,18 +63,10 @@ export function DashboardOverview() {
     }
   }
 
-  const eurUsdRate = pairToRate.get('EUR/USD') || 0;
-  const gbpUsdRate = pairToRate.get('GBP/USD') || 0;
-  const portfolioTotal = Object.entries(PORTFOLIO_ALLOCATION).reduce((sum, [cur, amt]) => {
-    if (cur === 'USD') return sum + amt;
-    const rate = cur === 'EUR' ? eurUsdRate : gbpUsdRate;
-    return sum + amt * rate;
-  }, 0);
-
   const wsRates = useRealtimeRates(['EURUSD', 'GBPUSD', 'USDJPY'], { autoReconnect: true });
-  const liveEurUsd = wsRates.rates['EURUSD'] || eurUsdRate || 1.0870;
-  const liveGbpUsd = wsRates.rates['GBPUSD'] || gbpUsdRate || 1.2820;
-  const liveUsdJpy = wsRates.rates['USDJPY'] || 161.45;
+  const liveEurUsd = wsRates.rates['EURUSD'] || 0;
+  const liveGbpUsd = wsRates.rates['GBPUSD'] || 0;
+  const liveUsdJpy = wsRates.rates['USDJPY'] || 0;
 
   const {
     register,
@@ -153,39 +138,7 @@ export function DashboardOverview() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <AnimatedCard delay={0} badge="Active Portfolio">
-          <h2 className="glass-widget__title"><Wallet size={16} /> Wallet Balances</h2>
-          {isLoadingRates ? (
-            <CardSkeleton />
-          ) : (
-            <>
-              <span className="text-xs text-slate-500 font-medium">Estimated Combined Value</span>
-              <div className="text-3xl font-extrabold text-slate-800 tracking-tight mt-1">
-                ${portfolioTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}{' '}
-                <span className="text-sm font-bold text-slate-500">USD</span>
-              </div>
-              <div className="wallet-card-list">
-                {Object.entries(PORTFOLIO_ALLOCATION).map(([cur, amt]) => {
-                  const usdValue = cur === 'USD' ? amt : amt * (cur === 'EUR' ? liveEurUsd : liveGbpUsd);
-                  return (
-                    <div key={cur} className="wallet-mini-card">
-                      <span className="wallet-mini-card__currency">{cur}</span>
-                      <span className="wallet-mini-card__balance">
-                        {cur === 'USD' && '$'}{cur === 'EUR' && '€'}{cur === 'GBP' && '£'}
-                        {amt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                      <span className="wallet-mini-card__converted">
-                        {cur === 'USD' ? 'Base Currency' : `≈ $${usdValue.toFixed(2)} USD`}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </AnimatedCard>
-
-        <AnimatedCard delay={100}>
+        <AnimatedCard delay={0} badge="Market Overview">
           <h2 className="glass-widget__title"><TrendingUp size={16} /> Live Market Trends</h2>
           {wsRates.status === 'connecting' && isLoadingRates ? (
             <CardSkeleton />
@@ -207,7 +160,7 @@ export function DashboardOverview() {
                     </svg>
                     <div className="text-right min-w-[80px]">
                       <span className="text-sm font-bold text-slate-800 tabular-nums">
-                        {item.rate.toFixed(item.pair.includes('JPY') ? 2 : 4)}
+                        {item.rate > 0 ? item.rate.toFixed(item.pair.includes('JPY') ? 2 : 4) : '--'}
                       </span>
                       <span className={`block text-xs font-semibold ${item.up ? 'text-emerald-600' : 'text-red-600'}`}>
                         {item.change}
@@ -223,8 +176,8 @@ export function DashboardOverview() {
           )}
         </AnimatedCard>
 
-        <AnimatedCard delay={200}>
-          <h2 className="glass-widget__title"><Bell size={16} /> Active FX Alerts</h2>
+        <AnimatedCard delay={100}>
+          <h2 className="glass-widget__title"><Bell size={16} /> Rate Alerts</h2>
           <div className="space-y-3 flex-1">
             {isLoadingAlerts ? (
               <CardSkeleton />
@@ -261,7 +214,7 @@ export function DashboardOverview() {
               to="/dashboard/settings"
               className="w-full py-2 border border-dashed border-slate-300 hover:border-teal-500 rounded-xl text-xs font-bold text-slate-500 hover:text-teal-600 transition-colors flex items-center justify-center gap-2"
             >
-              <Plus size={14} /> Create Alert Trigger
+              <Plus size={14} /> Create New Alert
             </Link>
           </div>
         </AnimatedCard>
@@ -302,10 +255,10 @@ export function DashboardOverview() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <AnimatedCard delay={300} className="lg:col-span-2">
-          <h2 className="glass-widget__title"><ArrowRightLeft size={16} /> Quick Exchange Tool</h2>
+          <h2 className="glass-widget__title"><ArrowRightLeft size={16} /> Convert Currency</h2>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div>
-              <label htmlFor="amount" className="block text-xs font-bold text-slate-600 mb-1.5">Transaction Amount</label>
+              <label htmlFor="amount" className="block text-xs font-bold text-slate-600 mb-1.5">Amount</label>
               <input
                 id="amount"
                 type="number"
@@ -359,7 +312,6 @@ export function DashboardOverview() {
               <div className="p-4 bg-teal-50/80 backdrop-blur-md border border-teal-200/80 rounded-2xl space-y-3 animate-in fade-in slide-in-from-top-3 duration-300">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-teal-800/60 uppercase tracking-wider">Conversion Successful</span>
-                  <span className="text-[10px] font-mono bg-teal-200/50 text-teal-900 px-2 py-0.5 rounded-full">ID: #{conversionResult.id}</span>
                 </div>
                 <div className="flex justify-between items-center py-1">
                   <div className="flex flex-col">
@@ -381,7 +333,7 @@ export function DashboardOverview() {
 
             {conversionError && (
               <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
-                Conversion failed: {conversionError.message || 'An unexpected error occurred.'}
+                Conversion failed. Please try again.
               </div>
             )}
 
@@ -390,29 +342,30 @@ export function DashboardOverview() {
               disabled={isConverting || watchedFrom === watchedTo}
               className="w-full h-11 bg-gradient-to-r from-teal-700 to-cyan-900 text-white font-bold rounded-xl shadow-lg shadow-teal-700/10 hover:shadow-teal-700/20 hover:scale-[1.01] active:scale-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              {isConverting ? <><RefreshCw className="animate-spin" size={16} /> Converting...</> : <>Convert &amp; Save Log <ArrowRight size={16} /></>}
+              {isConverting ? <><RefreshCw className="animate-spin" size={16} /> Converting...</> : <>Convert &amp; Save <ArrowRight size={16} /></>}
             </button>
           </form>
         </AnimatedCard>
 
         <AnimatedCard delay={400} className="lg:col-span-3">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="glass-widget__title mb-0"><History size={16} /> Recent Conversion Logs</h2>
+            <h2 className="glass-widget__title mb-0"><History size={16} /> Recent Conversions</h2>
             <Link to="/dashboard/history" className="text-xs font-bold text-teal-600 hover:text-teal-800 transition-colors">View Full History</Link>
           </div>
 
           {isLoadingHistory ? (
             <TableSkeleton rows={4} cols={5} />
           ) : historyError ? (
-            <div className="flex flex-col items-center justify-center py-8 gap-2">
+              <div className="flex flex-col items-center justify-center py-8 gap-2">
               <AlertTriangle size={24} className="text-rose-400" />
-              <p className="text-sm font-semibold text-rose-600">Failed to load recent conversion history.</p>
+              <p className="text-sm font-semibold text-rose-600">Unable to load recent conversions.</p>
+              <p className="text-xs text-rose-400">Please try again later.</p>
             </div>
           ) : recentConversions.length === 0 ? (
             <EmptyState
               icon={<Search size={28} />}
               title="No conversions yet"
-              description="Set amounts above to add one."
+              description="Use the form on the left to make your first conversion."
             />
           ) : (
             <div className="custom-table-container flex-1">

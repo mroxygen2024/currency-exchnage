@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRightLeft, LockKeyhole, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ArrowRightLeft, TrendingUp, ShieldCheck, Globe } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 type AuthShellProps = {
@@ -26,22 +26,22 @@ export function AuthShell({ eyebrow, title, description, children, footer }: Aut
           <article>
             <ShieldCheck size={18} />
             <div>
-              <h2>Bearer authentication</h2>
-              <p>Requests attach your access token automatically.</p>
+              <h2>Bank-level security</h2>
+              <p>Your data is protected with enterprise-grade encryption.</p>
             </div>
           </article>
           <article>
-            <RefreshCw size={18} />
+            <TrendingUp size={18} />
             <div>
-              <h2>Refresh rotation</h2>
-              <p>Expired sessions rotate once and retry in place.</p>
+              <h2>Real-time rates</h2>
+              <p>Access live exchange rates from global currency markets.</p>
             </div>
           </article>
           <article>
-            <LockKeyhole size={18} />
+            <Globe size={18} />
             <div>
-              <h2>Persistent session</h2>
-              <p>Credentials survive reloads until you log out.</p>
+              <h2>Global coverage</h2>
+              <p>Convert between 150+ currencies worldwide.</p>
             </div>
           </article>
         </div>

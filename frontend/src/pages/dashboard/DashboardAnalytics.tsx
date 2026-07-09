@@ -296,8 +296,8 @@ export function DashboardAnalytics() {
             <div className="analytics-error">
               <AlertTriangle size={20} className="text-rose-400" />
               <div>
-                <p className="font-semibold text-rose-700">Failed to load trend statistics</p>
-                <p className="text-xs text-rose-500">{trendsError.message}</p>
+                <p className="font-semibold text-rose-700">Failed to load statistics</p>
+                <p className="text-xs text-rose-500">Please try again later.</p>
               </div>
               <button
                 type="button"
@@ -373,7 +373,7 @@ export function DashboardAnalytics() {
           <div className="analytics-chart-error">
             <AlertTriangle size={24} className="text-rose-300" />
             <p className="text-sm text-rose-600 font-semibold">Unable to load trend data</p>
-            <p className="text-xs text-slate-400">{trendsError.message}</p>
+            <p className="text-xs text-slate-400">Please try again later.</p>
             <button
               type="button"
               onClick={() => refetchTrends()}
@@ -386,7 +386,7 @@ export function DashboardAnalytics() {
           <EmptyState
             icon={<BarChart3 size={32} />}
             title="No trend data available"
-            description="No trend data available for this pair and date range."
+            description="No data found for this currency pair and date range. Try a different pair or time period."
           />
         ) : (
           <div className="analytics-chart">
@@ -445,7 +445,7 @@ export function DashboardAnalytics() {
               <AlertTriangle size={18} className="text-rose-400" />
               <div>
                 <p className="font-semibold text-rose-700 text-sm">Failed to load</p>
-                <p className="text-xs text-rose-500">{analyticsError.message}</p>
+                <p className="text-xs text-rose-500">Please try again later.</p>
               </div>
               <button
                 type="button"
@@ -456,11 +456,11 @@ export function DashboardAnalytics() {
               </button>
             </div>
           ) : popularPairs.length === 0 ? (
-            <EmptyState
-              icon={<ArrowRightLeft size={24} />}
-              title="No popular pairs"
-              description="No popular pair data available."
-            />
+          <EmptyState
+            icon={<ArrowRightLeft size={24} />}
+            title="No popular pairs"
+            description="Conversion data will appear here once you start converting."
+          />
           ) : (
             <div className="custom-table-container">
               <table className="custom-table">
@@ -511,7 +511,7 @@ export function DashboardAnalytics() {
               <AlertTriangle size={18} className="text-rose-400" />
               <div>
                 <p className="font-semibold text-rose-700 text-sm">Failed to load</p>
-                <p className="text-xs text-rose-500">{analyticsError.message}</p>
+                <p className="text-xs text-rose-500">Please try again later.</p>
               </div>
               <button
                 type="button"
@@ -522,11 +522,11 @@ export function DashboardAnalytics() {
               </button>
             </div>
           ) : volumeEntries.length === 0 ? (
-            <EmptyState
-              icon={<Coins size={24} />}
-              title="No volume data"
-              description="No volume data available."
-            />
+          <EmptyState
+            icon={<Coins size={24} />}
+            title="No volume data"
+            description="Volume data will appear as conversions are made on the platform."
+          />
           ) : (
             <div className="analytics-chart">
               <ResponsiveContainer width="100%" height={280}>

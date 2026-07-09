@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           </div>
           <h2 className="error-boundary__title">Something went wrong</h2>
           <p className="error-boundary__message">
-            {this.state.error?.message || 'An unexpected error occurred. Please try again.'}
+            {this.state.error?.message || 'Something went wrong. Please try again.'}
           </p>
           <button
             type="button"

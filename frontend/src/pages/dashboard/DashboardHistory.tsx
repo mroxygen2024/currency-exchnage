@@ -75,7 +75,7 @@ export function DashboardHistory() {
           toast.success('Record deleted', `Conversion record #${deleteTarget} has been deleted.`);
         },
         onError: () => {
-          toast.error('Delete failed', 'Could not delete the conversion record.');
+          toast.error('Delete failed', 'Unable to delete record. Please try again.');
           setDeleteTarget(null);
         },
       });
@@ -103,14 +103,14 @@ export function DashboardHistory() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `AeroExchange_Conversions_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `AeroExchange_History_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       toast.success('Export complete', 'CSV file has been downloaded.');
     } catch (err) {
-      toast.error('Export failed', 'Could not export history as CSV.');
+      toast.error('Export failed', 'Unable to export history. Please try again.');
     }
   };
 
@@ -132,7 +132,7 @@ export function DashboardHistory() {
       <div className="dashboard-page-title flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1>Conversion History</h1>
-          <p>Audit and search through your complete secure transaction history.</p>
+          <p>Review and manage your conversion history. Export or search through past transactions.</p>
         </div>
         <button
           type="button"
@@ -234,7 +234,7 @@ export function DashboardHistory() {
               ) : error ? (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-rose-500 font-semibold">
-                    Failed to load conversion history. {error.message}
+                    Unable to load conversion history. Please try again later.
                   </td>
                 </tr>
               ) : currentItems.length === 0 ? (
@@ -243,7 +243,7 @@ export function DashboardHistory() {
                     <EmptyState
                       icon={<Search size={28} />}
                       title="No conversions found"
-                      description="No conversion logs matching the current filters."
+                      description="Try adjusting your search or date filters."
                     />
                   </td>
                 </tr>

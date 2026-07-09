@@ -195,7 +195,7 @@ export function DashboardLayout() {
           <div className="user-profile-summary__avatar">{userInitial}</div>
           <div className="user-profile-summary__info">
             <span className="user-profile-summary__name">
-              {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : 'FX Trader'}
+              {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : user?.email || 'User'}
             </span>
             <span className="user-profile-summary__email">{user?.email}</span>
           </div>
@@ -354,7 +354,7 @@ export function DashboardLayout() {
               >
                 <div className="header-profile-trigger__avatar" aria-hidden="true">{userInitial}</div>
                 <span className="header-profile-trigger__name">
-                  {user?.first_name || 'FX Trader'}
+                  {user?.first_name || user?.email || 'User'}
                 </span>
                 <ChevronDown size={14} className="text-slate-400" aria-hidden="true" />
               </button>

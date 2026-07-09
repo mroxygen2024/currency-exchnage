@@ -17,10 +17,10 @@ export function SessionPage() {
       <section className="session-card">
         <div className="session-card__header">
           <div>
-            <p className="eyebrow">Authenticated session</p>
-            <h1>Protected route is active</h1>
+            <p className="eyebrow">Active session</p>
+            <h1>Welcome back</h1>
             <p>
-              You are signed in with bearer authentication and refresh token rotation.
+              You are signed in and your session is secure.
             </p>
           </div>
 
@@ -48,7 +48,7 @@ export function SessionPage() {
         </div>
 
         <div className="session-notice">
-          Dashboard screens are intentionally omitted for now. This route only confirms the authenticated shell.
+          Visit your dashboard to access conversions, analytics, and account settings.
         </div>
       </section>
     </main>

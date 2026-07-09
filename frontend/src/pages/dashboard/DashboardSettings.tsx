@@ -7,9 +7,9 @@ import { AlertTriangle, Shield, Trash2, User } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { usersApi } from '../../api/endpoints/users';
 import { AnimatedCard } from '../../components/ui/AnimatedCard';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { Dialog, DialogActions, DialogButton } from '../../components/ui/Dialog';
 import { useToast } from '../../components/ui/Toast';
-import { ApiError } from '../../api/errors';
 import { useNavigate } from 'react-router-dom';
 
 const profileSchema = z.object({
@@ -65,8 +65,8 @@ export function DashboardSettings() {
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
       toast.success('Profile updated', 'Profile information updated successfully!');
     },
-    onError: (err: ApiError) => {
-      toast.error('Update failed', err.message || 'Failed to update profile.');
+    onError: () => {
+      toast.error('Update failed', 'Unable to update profile. Please try again.');
     },
   });
 
@@ -77,8 +77,8 @@ export function DashboardSettings() {
       toast.success('Password updated', 'Password updated successfully!');
       passwordForm.reset();
     },
-    onError: (err: ApiError) => {
-      toast.error('Password update failed', err.message || 'Failed to update password.');
+    onError: () => {
+      toast.error('Password update failed', 'Unable to update password. Please try again.');
     },
   });
 
@@ -90,8 +90,8 @@ export function DashboardSettings() {
       navigate('/', { replace: true });
       toast.success('Account deleted', 'Your account has been permanently deleted.');
     },
-    onError: (err: ApiError) => {
-      toast.error('Delete failed', err.message || 'Failed to delete account.');
+    onError: () => {
+      toast.error('Delete failed', 'Unable to delete account. Please try again.');
       setShowDeleteDialog(false);
     },
   });
@@ -123,7 +123,7 @@ export function DashboardSettings() {
           <AnimatedCard delay={0} className="p-6" data-testid="profile-section">
             <div className="flex items-center gap-3 mb-6">
               <User size={20} className="text-teal-600" />
-              <h2 className="text-lg font-bold text-slate-800">Profile Information</h2>
+              <h2 className="text-lg font-bold text-slate-800">Personal Information</h2>
             </div>
 
             <form className="space-y-6 max-w-lg" onSubmit={profileForm.handleSubmit(onProfileSubmit)} data-testid="profile-form">
@@ -167,7 +167,7 @@ export function DashboardSettings() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1.5">Email Address (Read-only)</label>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5">Email</label>
                 <input
                   type="email"
                   className="w-full h-11 px-3 border border-slate-200 rounded-xl bg-slate-50/70 text-slate-400 font-semibold cursor-not-allowed"
@@ -177,10 +177,10 @@ export function DashboardSettings() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1.5">Access Credentials</label>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5">Account Role</label>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-teal-50 border border-teal-200 rounded-lg text-xs font-bold text-teal-800 uppercase tracking-wider">
                   <Shield size={14} />
-                  Role: {user?.role || 'user'}
+                  {user?.role || 'user'}
                 </div>
               </div>
 
@@ -198,66 +198,39 @@ export function DashboardSettings() {
           <AnimatedCard delay={100} className="p-6" data-testid="password-section">
             <div className="flex items-center gap-3 mb-6">
               <Shield size={20} className="text-teal-600" />
-              <h2 className="text-lg font-bold text-slate-800">Password & Security</h2>
+              <h2 className="text-lg font-bold text-slate-800">Change Password</h2>
             </div>
 
             <form className="space-y-6 max-w-lg" onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} data-testid="password-form">
-              <div>
-                <label htmlFor="current-password" className="block text-xs font-bold text-slate-600 mb-1.5">
-                  Current Password
-                </label>
-                <input
-                  id="current-password"
-                  type="password"
-                  className={`w-full h-11 px-3 border rounded-xl bg-white/70 focus:outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-500/10 ${
-                    passwordForm.formState.errors.current_password ? 'border-red-300' : 'border-slate-200'
-                  }`}
-                  {...passwordForm.register('current_password')}
-                />
-                {passwordForm.formState.errors.current_password && (
-                  <p className="text-xs text-red-500 mt-1" data-testid="password-error">
-                    {passwordForm.formState.errors.current_password.message}
-                  </p>
-                )}
-              </div>
+              <PasswordInput
+                id="current-password"
+                label="Current Password"
+                autoComplete="current-password"
+                placeholder="Enter current password"
+                error={passwordForm.formState.errors.current_password?.message}
+                errorId="current-password-error"
+                {...passwordForm.register('current_password')}
+              />
 
-              <div>
-                <label htmlFor="new-password" className="block text-xs font-bold text-slate-600 mb-1.5">
-                  New Password
-                </label>
-                <input
-                  id="new-password"
-                  type="password"
-                  className={`w-full h-11 px-3 border rounded-xl bg-white/70 focus:outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-500/10 ${
-                    passwordForm.formState.errors.new_password ? 'border-red-300' : 'border-slate-200'
-                  }`}
-                  {...passwordForm.register('new_password')}
-                />
-                {passwordForm.formState.errors.new_password && (
-                  <p className="text-xs text-red-500 mt-1" data-testid="password-error">
-                    {passwordForm.formState.errors.new_password.message}
-                  </p>
-                )}
-              </div>
+              <PasswordInput
+                id="new-password"
+                label="New Password"
+                autoComplete="new-password"
+                placeholder="Enter new password"
+                error={passwordForm.formState.errors.new_password?.message}
+                errorId="new-password-error"
+                {...passwordForm.register('new_password')}
+              />
 
-              <div>
-                <label htmlFor="confirm-password" className="block text-xs font-bold text-slate-600 mb-1.5">
-                  Confirm New Password
-                </label>
-                <input
-                  id="confirm-password"
-                  type="password"
-                  className={`w-full h-11 px-3 border rounded-xl bg-white/70 focus:outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-500/10 ${
-                    passwordForm.formState.errors.confirm_password ? 'border-red-300' : 'border-slate-200'
-                  }`}
-                  {...passwordForm.register('confirm_password')}
-                />
-                {passwordForm.formState.errors.confirm_password && (
-                  <p className="text-xs text-red-500 mt-1" data-testid="password-error">
-                    {passwordForm.formState.errors.confirm_password.message}
-                  </p>
-                )}
-              </div>
+              <PasswordInput
+                id="confirm-password"
+                label="Confirm New Password"
+                autoComplete="new-password"
+                placeholder="Confirm new password"
+                error={passwordForm.formState.errors.confirm_password?.message}
+                errorId="confirm-password-error"
+                {...passwordForm.register('confirm_password')}
+              />
 
               <button
                 type="submit"
@@ -265,7 +238,7 @@ export function DashboardSettings() {
                 className="h-11 px-6 bg-slate-800 text-white font-bold rounded-xl hover:bg-teal-700 transition-colors shadow-md disabled:opacity-50 cursor-pointer"
                 data-testid="password-submit"
               >
-                {changePassword.isPending ? 'Updating...' : 'Update Credentials'}
+                {changePassword.isPending ? 'Updating...' : 'Update Password'}
               </button>
             </form>
           </AnimatedCard>
