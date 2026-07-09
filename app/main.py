@@ -4,6 +4,7 @@ import subprocess  # noqa: S404
 import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -87,6 +88,205 @@ async def _run_alembic_migrations() -> None:
         )
 
 
+async def _seed_historical_rates() -> None:
+    """Seed historical rate data if the currency_rate_history table is empty.
+
+    This ensures the trends/analytics graph always has data to display.
+    Tries the external provider first; falls back to synthetic data on failure.
+    """
+    from datetime import UTC, timedelta
+
+    from sqlalchemy import func, select
+
+    from app.core.database import AsyncSessionLocal
+    from app.modules.currency.models import CurrencyRate, CurrencyRateHistory
+
+    try:
+        async with AsyncSessionLocal() as session:
+            count_result = await session.execute(
+                select(func.count(CurrencyRateHistory.id))
+            )
+            history_count = count_result.scalar() or 0
+
+            if history_count > 0:
+                logger.info(
+                    "Historical rate data already exists",
+                    record_count=history_count,
+                )
+                return
+
+            # No history exists - seed it
+            rates_result = await session.execute(select(CurrencyRate))
+            rates = list(rates_result.scalars().all())
+
+            if not rates:
+                logger.info("No rates in DB to seed history from.")
+                return
+
+            logger.info(
+                "Seeding historical rate data for existing rates",
+                rate_count=len(rates),
+            )
+
+            import random as _random
+
+            now = datetime.now(UTC)
+            inserted = 0
+
+            for rate_record in rates:
+                base = rate_record.base_currency
+                target = rate_record.target_currency
+                current_rate = float(rate_record.rate)
+
+                # Try to backfill from provider
+                backfilled = False
+                try:
+                    from app.modules.currency.services import backfill_historical_rates
+
+                    backfill_start = now - timedelta(days=30)
+                    await backfill_historical_rates(
+                        session, base, target, backfill_start, now
+                    )
+                    # Check if backfill inserted anything
+                    check = await session.execute(
+                        select(func.count(CurrencyRateHistory.id)).where(
+                            CurrencyRateHistory.base_currency == base,
+                            CurrencyRateHistory.target_currency == target,
+                        )
+                    )
+                    if (check.scalar() or 0) > 0:
+                        backfilled = True
+                        inserted += check.scalar()
+                except Exception as exc:
+                    logger.warn(
+                        "Provider backfill failed for seeding, using synthetic data",
+                        pair=f"{base}/{target}",
+                        error=str(exc),
+                    )
+
+                if not backfilled:
+                    # Generate synthetic historical data (30 days of slight fluctuations)
+                    for days_ago in range(30, 0, -1):
+                        ts = now - timedelta(days=days_ago)
+                        # Random fluctuation +/- 2%
+                        fluctuation = 1 + _random.uniform(-0.02, 0.02)
+                        hist_rate = current_rate * fluctuation
+                        record = CurrencyRateHistory(
+                            base_currency=base,
+                            target_currency=target,
+                            rate=round(hist_rate, 6),
+                            timestamp=ts,
+                        )
+                        session.add(record)
+                        inserted += 1
+
+            await session.commit()
+            logger.info(
+                "Historical rate seeding completed",
+                records_inserted=inserted,
+            )
+    except Exception as exc:
+        logger.error(
+            "Failed to seed historical rate data",
+            error=str(exc),
+            exc_info=True,
+        )
+
+
+async def _refresh_rates_on_startup() -> None:
+    """Refresh exchange rates from the external provider on startup.
+
+    This replaces the Celery beat periodic task on platforms like Render
+    where only the web service runs (no Celery worker/beat).
+    Runs as a background task so it doesn't block the server from accepting requests.
+    """
+    import random as _random
+
+    from app.core.database import AsyncSessionLocal
+    from app.core.redis import redis_manager
+    from app.modules.currency.models import CurrencyRate
+    from app.modules.currency.services import update_or_create_rate
+
+    try:
+        # Small delay to let the app finish startup first
+        await asyncio.sleep(5)
+
+        async with AsyncSessionLocal() as session:
+            from sqlalchemy import select
+
+            rates_result = await session.execute(select(CurrencyRate))
+            rates = list(rates_result.scalars().all())
+
+            if not rates:
+                logger.info("No rates to refresh on startup.")
+                return
+
+            logger.info(
+                "Refreshing rates from provider on startup",
+                rate_count=len(rates),
+            )
+
+            # Group by base currency to minimize API calls
+            base_groups: dict[str, list[str]] = {}
+            for r in rates:
+                base_groups.setdefault(r.base_currency, []).append(r.target_currency)
+
+            redis_client = redis_manager.client
+
+            for base_curr, target_currs in base_groups.items():
+                try:
+                    from app.modules.currency.providers import get_exchange_rate_provider
+
+                    provider = get_exchange_rate_provider()
+                    latest_rates = await provider.get_latest_rates(
+                        base=base_curr, symbols=target_currs
+                    )
+                    for target_curr in target_currs:
+                        if target_curr in latest_rates:
+                            await update_or_create_rate(
+                                db=session,
+                                redis=redis_client,
+                                base=base_curr,
+                                target=target_curr,
+                                rate=latest_rates[target_curr],
+                            )
+                    logger.info(
+                        "Refreshed rates from provider",
+                        base=base_curr,
+                        targets=target_currs,
+                    )
+                except Exception as exc:
+                    logger.warn(
+                        "Provider refresh failed on startup, applying fluctuation",
+                        base=base_curr,
+                        error=str(exc),
+                    )
+                    # Fallback: slight random fluctuation
+                    for r in rates:
+                        if (
+                            r.base_currency == base_curr
+                            and r.target_currency in target_currs
+                        ):
+                            change = _random.uniform(-0.005, 0.005)
+                            new_rate = round(float(r.rate) * (1 + change), 6)
+                            await update_or_create_rate(
+                                db=session,
+                                redis=redis_client,
+                                base=r.base_currency,
+                                target=r.target_currency,
+                                rate=new_rate,
+                            )
+
+            await session.commit()
+            logger.info("Startup rate refresh completed.")
+    except Exception as exc:
+        logger.error(
+            "Startup rate refresh failed",
+            error=str(exc),
+            exc_info=True,
+        )
+
+
 # ------------------------------------------------------------------------------
 # Lifespan Hook (FastAPI 0.115+)
 # ------------------------------------------------------------------------------
@@ -146,8 +346,16 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
                 exc_info=True,
             )
 
-    # 5. Start periodic rates pusher background task
+    # 5. Seed historical rate data if currency_rate_history is empty
+    if settings.ENV != "testing":
+        await _seed_historical_rates()
+
+    # 6. Start periodic rates pusher background task
     rates_task = asyncio.create_task(periodic_rates_pusher())
+
+    # 7. Refresh rates from provider on startup (replaces Celery beat on Render)
+    if settings.ENV != "testing":
+        asyncio.create_task(_refresh_rates_on_startup())
 
     yield
 

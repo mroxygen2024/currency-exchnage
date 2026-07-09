@@ -1,3 +1,4 @@
+import json
 import random
 
 from redis.asyncio import Redis
@@ -182,8 +183,13 @@ def refresh_cache_task(self) -> None:
                 cache_key = services._get_cache_key(
                     rate.base_currency, rate.target_currency
                 )
+                cache_payload = json.dumps({
+                    "id": rate.id,
+                    "rate": float(rate.rate),
+                    "last_updated": rate.last_updated.isoformat() if rate.last_updated else None,
+                })
                 await redis_client.setex(
-                    cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, str(float(rate.rate))
+                    cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, cache_payload
                 )
 
             # 2. Warm supported currencies and symbols cache
