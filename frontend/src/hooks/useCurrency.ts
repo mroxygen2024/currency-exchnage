@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { currencyApi } from '../api/endpoints/currency';
 import { CurrencyRateOut, CurrencyConversionOut } from '../api/types';
@@ -20,8 +21,8 @@ export function useSupportedCurrencies() {
   return useQuery<string[], ApiError>({
     queryKey: currencyKeys.supported(),
     queryFn: () => currencyApi.getSupported(),
-    staleTime: Infinity, // Supported currencies don't change frequently
-    gcTime: 24 * 60 * 60 * 1000, // Keep in garbage collection cache for 24 hours
+    staleTime: Infinity,
+    gcTime: 24 * 60 * 60 * 1000,
     retry: 2,
   });
 }
@@ -48,7 +49,7 @@ export function useAllRates() {
   return useQuery<CurrencyRateOut[], ApiError>({
     queryKey: currencyKeys.rates(),
     queryFn: () => currencyApi.getAllRates(),
-    staleTime: 30 * 1000, // 30 seconds stale time
+    staleTime: 30 * 1000,
     refetchOnWindowFocus: true,
     retry: 1,
   });
@@ -67,9 +68,10 @@ export function useCurrencyRate(base?: string, target?: string) {
     queryKey: currencyKeys.rate(cleanBase || '', cleanTarget || ''),
     queryFn: () => currencyApi.getRate(cleanBase!, cleanTarget!),
     enabled: isValidPair,
-    staleTime: 30 * 1000, // 30 seconds stale time
+    staleTime: 30 * 1000,
     refetchOnWindowFocus: true,
     retry: 1,
+    select: useMemo(() => (data: CurrencyRateOut) => data, []),
   });
 }
 
@@ -89,8 +91,14 @@ export function useCurrencyConversion(
     queryKey: currencyKeys.convert(cleanFrom || '', cleanTo || '', params.amount),
     queryFn: () => currencyApi.convert({ from: cleanFrom!, to: cleanTo!, amount: params.amount }),
     enabled: enabled && isValid,
-    staleTime: 10 * 1000, // 10 seconds cache validity
+    staleTime: 10 * 1000,
     retry: 1,
+    select: useMemo(
+      () => (data: CurrencyConversionOut) => ({
+        ...data,
+        result: Number(data.result.toFixed(2)),
+      }),
+      []
+    ),
   });
 }
-

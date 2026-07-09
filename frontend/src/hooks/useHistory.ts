@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { historyApi, HistoryFilterParams } from '../api/endpoints/history';
 import { PaginatedHistory, CurrencyConversionOut } from '../api/types';
@@ -15,6 +16,16 @@ export function useHistoryList(params?: HistoryFilterParams) {
     queryFn: () => historyApi.getHistory(params),
     staleTime: 15 * 1000,
     retry: 1,
+    select: useMemo(
+      () => (data: PaginatedHistory) => ({
+        ...data,
+        items: data.items.map((item) => ({
+          ...item,
+          result: Number(item.result.toFixed(2)),
+        })),
+      }),
+      []
+    ),
   });
 }
 

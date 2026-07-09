@@ -153,6 +153,7 @@ export function DashboardHistory() {
             className="w-full h-10 pl-10 pr-4 border border-slate-200 rounded-xl bg-white/70 focus:outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-500/10 font-medium text-sm"
             value={searchTerm}
             onChange={(e) => handleSearchChange(e.target.value)}
+            aria-label="Search history by currency code"
           />
         </div>
 

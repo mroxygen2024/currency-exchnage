@@ -1,16 +1,17 @@
-import { useState, useMemo } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import {
-  AreaChart,
+  LazyAreaChart,
+  LazyBarChart,
+  ChartLoader,
   Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
   Bar,
   Cell,
-} from 'recharts';
+} from '../../components/charts/LazyCharts';
 import {
   BarChart3,
   TrendingUp,
@@ -193,6 +194,7 @@ export function DashboardAnalytics() {
                 value={baseCurrency}
                 onChange={setBaseCurrency}
                 exclude={[targetCurrency]}
+                label="Base Currency"
               />
               <button
                 type="button"
@@ -390,8 +392,9 @@ export function DashboardAnalytics() {
           />
         ) : (
           <div className="analytics-chart">
-            <ResponsiveContainer width="100%" height={340}>
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <Suspense fallback={<ChartLoader />}>
+              <ResponsiveContainer width="100%" height={340}>
+                <LazyAreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0d7380" stopOpacity={0.2} />
@@ -427,8 +430,9 @@ export function DashboardAnalytics() {
                   dot={false}
                   activeDot={{ r: 5, fill: '#0d7380', stroke: '#fff', strokeWidth: 2 }}
                 />
-              </AreaChart>
+              </LazyAreaChart>
             </ResponsiveContainer>
+          </Suspense>
           </div>
         )}
       </AnimatedCard>
@@ -529,14 +533,15 @@ export function DashboardAnalytics() {
           />
           ) : (
             <div className="analytics-chart">
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart
-                  data={volumeEntries.map(([currency, volume]) => ({
-                    currency,
-                    volume: Number(volume.toFixed(0)),
-                  }))}
-                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                >
+              <Suspense fallback={<ChartLoader />}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LazyBarChart
+                    data={volumeEntries.map(([currency, volume]) => ({
+                      currency,
+                      volume: Number(volume.toFixed(0)),
+                    }))}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                  >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                   <XAxis
                     dataKey="currency"
@@ -572,8 +577,9 @@ export function DashboardAnalytics() {
                       />
                     ))}
                   </Bar>
-                </BarChart>
+                </LazyBarChart>
               </ResponsiveContainer>
+            </Suspense>
             </div>
           )}
         </AnimatedCard>

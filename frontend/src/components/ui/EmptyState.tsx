@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 interface EmptyStateProps {
@@ -9,7 +9,7 @@ interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
+function EmptyStateInner({ icon, title, description, action, className }: EmptyStateProps) {
   return (
     <div className={cn('empty-state', className)} role="status">
       <div className="empty-state__icon">{icon}</div>
@@ -19,3 +19,5 @@ export function EmptyState({ icon, title, description, action, className }: Empt
     </div>
   );
 }
+
+export const EmptyState = memo(EmptyStateInner);

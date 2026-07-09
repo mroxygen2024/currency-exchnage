@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { TrendingDown, TrendingUp, Trash2 } from 'lucide-react';
 import { FavoritePairOut } from '../../api/types';
 import { getCurrencyFlag } from '../CurrencySelector';
@@ -12,7 +13,7 @@ export interface FavoriteCardProps {
   delay?: number;
 }
 
-export function FavoriteCard({
+function FavoriteCardInner({
   favorite,
   currentRate,
   previousRate,
@@ -110,3 +111,5 @@ export function FavoriteCard({
     </div>
   );
 }
+
+export const FavoriteCard = memo(FavoriteCardInner);

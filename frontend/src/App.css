@@ -1,3 +1,10 @@
+.page-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
 .shell {
   min-height: 100vh;
   padding: 32px;

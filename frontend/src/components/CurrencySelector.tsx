@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { ChevronDown, Search, AlertCircle, RefreshCw, Check } from 'lucide-react';
 import { useSupportedCurrencies, useCurrencySymbols } from '../hooks/useCurrency';
 import { cn } from '../lib/utils';
@@ -28,7 +28,7 @@ export function getCurrencyFlag(currencyCode: string): string {
   return flags[currencyCode.toUpperCase()] || '🏳️';
 }
 
-export function CurrencySelector({
+function CurrencySelectorInner({
   value,
   onChange,
   label,
@@ -312,3 +312,5 @@ export function CurrencySelector({
     </div>
   );
 }
+
+export const CurrencySelector = memo(CurrencySelectorInner);
