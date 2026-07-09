@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentProps } from 'react';
+import { lazy, type ComponentProps } from 'react';
 import { Loader2 } from 'lucide-react';
 
 type AreaChartProps = ComponentProps<typeof import('recharts').AreaChart>;

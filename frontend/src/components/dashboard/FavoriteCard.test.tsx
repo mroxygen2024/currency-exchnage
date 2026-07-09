@@ -8,7 +8,7 @@ const mockFavorite: FavoritePairOut = {
   user_id: 1,
   base_currency: 'USD',
   target_currency: 'EUR',
-  created_at: new Date().toISOString(),
+  created_at: new Date(),
 };
 
 describe('FavoriteCard', () => {

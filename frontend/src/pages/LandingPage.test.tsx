@@ -77,14 +77,14 @@ describe('LandingPage', () => {
     const fromSelect = screen.getByLabelText(/source currency/i);
     const toSelect = screen.getByLabelText(/target currency/i);
 
-    const initialFrom = fromSelect.value;
-    const initialTo = toSelect.value;
+    const initialFrom = (fromSelect as HTMLInputElement).value;
+    const initialTo = (toSelect as HTMLInputElement).value;
 
     fireEvent.click(swapButton);
 
     await waitFor(() => {
-      expect(fromSelect.value).toBe(initialTo);
-      expect(toSelect.value).toBe(initialFrom);
+      expect((fromSelect as HTMLInputElement).value).toBe(initialTo);
+      expect((toSelect as HTMLInputElement).value).toBe(initialFrom);
     });
   });
 

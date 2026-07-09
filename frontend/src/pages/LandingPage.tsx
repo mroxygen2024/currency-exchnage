@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
 import { currencyApi } from '../api/endpoints/currency';
@@ -11,7 +10,6 @@ import { FAQSection } from '../components/landing/FAQSection';
 import { Footer } from '../components/landing/Footer';
 
 export function LandingPage() {
-  const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
   const [symbols, setSymbols] = useState<Record<string, string>>({});
