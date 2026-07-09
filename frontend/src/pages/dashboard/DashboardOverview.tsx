@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
   ArrowRightLeft,
@@ -12,117 +16,125 @@ import {
   Wallet,
 } from 'lucide-react';
 import { CurrencySelector } from '../../components/CurrencySelector';
-import { useCurrencyRate } from '../../hooks/useCurrency';
+import {
+  useCurrencyRate,
+  useCurrencyConversion,
+  useConversionHistory,
+} from '../../hooks/useCurrency';
 
+// Zod Schema for conversion form validation
+const conversionSchema = z.object({
+  amount: z.number({
+    message: 'Amount is required',
+  }).refine((val) => !isNaN(val) && val > 0, {
+    message: 'Amount must be greater than 0',
+  }),
+  fromCurrency: z.string().length(3, 'Source currency is required'),
+  toCurrency: z.string().length(3, 'Target currency is required'),
+}).refine((data) => data.fromCurrency !== data.toCurrency, {
+  message: 'Source and target currencies must be different',
+  path: ['toCurrency'],
+});
 
-const FALLBACK_RATES: Record<string, number> = {
-  USD: 1.0,
-  EUR: 0.92,
-  GBP: 0.78,
-  JPY: 161.4,
-  CAD: 1.36,
-  AUD: 1.49,
-  CHF: 0.89,
-};
-
-interface ConversionLog {
-  id: string;
-  date: string;
-  fromCurrency: string;
-  fromAmount: number;
-  toCurrency: string;
-  toAmount: number;
-  rate: number;
-  status: 'completed' | 'pending' | 'failed';
-}
-
-const DEFAULT_CONVERSIONS: ConversionLog[] = [
-  { id: 'tx_101', date: '2026-07-09T09:12:00.000Z', fromCurrency: 'USD', fromAmount: 1500, toCurrency: 'EUR', toAmount: 1380, rate: 0.92, status: 'completed' },
-  { id: 'tx_102', date: '2026-07-09T08:05:00.000Z', fromCurrency: 'GBP', fromAmount: 750, toCurrency: 'USD', toAmount: 961.5, rate: 1.282, status: 'completed' },
-  { id: 'tx_103', date: '2026-07-08T17:40:00.000Z', fromCurrency: 'EUR', fromAmount: 200, toCurrency: 'JPY', toAmount: 34800, rate: 174.0, status: 'completed' },
-  { id: 'tx_104', date: '2026-07-08T11:15:00.000Z', fromCurrency: 'USD', fromAmount: 100, toCurrency: 'CAD', toAmount: 136.5, rate: 1.365, status: 'completed' },
-  { id: 'tx_105', date: '2026-07-07T14:30:00.000Z', fromCurrency: 'AUD', fromAmount: 3000, toCurrency: 'USD', toAmount: 2010, rate: 0.67, status: 'failed' },
-];
+type ConversionFormValues = z.infer<typeof conversionSchema>;
 
 export function DashboardOverview() {
-  // Conversions log storage in localStorage for cross-component updates
-  const [conversions, setConversions] = useState<ConversionLog[]>([]);
-  const [amount, setAmount] = useState<number>(1000);
-  const [fromCurrency, setFromCurrency] = useState<string>('USD');
-  const [toCurrency, setToCurrency] = useState<string>('EUR');
-  const [convertedAmount, setConvertedAmount] = useState<number>(920);
-  const [rate, setRate] = useState<number>(0.92);
-  const [isLogging, setIsLogging] = useState(false);
+  const queryClient = useQueryClient();
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [queryParams, setQueryParams] = useState<{ from: string; to: string; amount: number } | null>(null);
 
-  // Mock Alert thresholds
+  // Mock Alert thresholds (remains as is)
   const [alerts, setAlerts] = useState([
     { id: 1, pair: 'EUR/USD', condition: '>', target: 1.12, active: true },
     { id: 2, pair: 'GBP/USD', condition: '<', target: 1.25, active: false },
   ]);
 
-  // Load conversions on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('aero:mock-conversions');
-    if (saved) {
-      setConversions(JSON.parse(saved) as ConversionLog[]);
-    } else {
-      localStorage.setItem('aero:mock-conversions', JSON.stringify(DEFAULT_CONVERSIONS));
-      setConversions(DEFAULT_CONVERSIONS);
-    }
-  }, []);
+  // React Hook Form setup
+  const {
+    register,
+    handleSubmit,
+    control,
+    setValue,
+    getValues,
+    watch,
+    formState: { errors },
+  } = useForm<ConversionFormValues>({
+    resolver: zodResolver(conversionSchema),
+    defaultValues: {
+      amount: 1000,
+      fromCurrency: 'USD',
+      toCurrency: 'EUR',
+    },
+  });
 
-  // Live rate query
-  const { data: liveRateData } = useCurrencyRate(fromCurrency, toCurrency);
+  const watchedAmount = watch('amount');
+  const watchedFrom = watch('fromCurrency');
+  const watchedTo = watch('toCurrency');
 
-  // Recalculate converter rate
+  // Clear query results/errors when form inputs change
   useEffect(() => {
-    if (liveRateData && liveRateData.rate) {
-      setRate(liveRateData.rate);
-      setConvertedAmount(Number((amount * liveRateData.rate).toFixed(4)));
-    } else {
-      const rFrom = FALLBACK_RATES[fromCurrency] ?? 1.0;
-      const rTo = FALLBACK_RATES[toCurrency] ?? 1.0;
-      const calcRate = rTo / rFrom;
-      setRate(calcRate);
-      setConvertedAmount(Number((amount * calcRate).toFixed(4)));
+    console.log('INPUTS CHANGED USEEFFECT RUNS:', watchedAmount, watchedFrom, watchedTo, 'queryParams is:', queryParams);
+    if (queryParams) {
+      console.log('CLEARING QUERY PARAMS');
+      setQueryParams(null);
     }
-  }, [amount, fromCurrency, toCurrency, liveRateData]);
+  }, [watchedAmount, watchedFrom, watchedTo]);
+
+  // Live currency rate query for real-time preview/estimation
+  const { data: liveRateData, isLoading: isLoadingLiveRate } = useCurrencyRate(watchedFrom, watchedTo);
+  const liveRate = liveRateData?.rate || 0;
+  const estimatedResult = watchedAmount && liveRate ? watchedAmount * liveRate : 0;
+
+  // Actual conversion query triggered on form submission
+  const {
+    data: conversionResult,
+    isLoading: isConverting,
+    error: conversionError,
+  } = useCurrencyConversion(
+    queryParams || { from: watchedFrom, to: watchedTo, amount: watchedAmount || 0 },
+    !!queryParams
+  );
+
+  // Fetch recent conversions from backend history
+  const {
+    data: historyData,
+    isLoading: isLoadingHistory,
+    error: historyError,
+  } = useConversionHistory({ limit: 4 });
+
+  const recentConversions = historyData?.items || [];
+
+  // Invalidate conversion history when a new conversion successfully registers
+  useEffect(() => {
+    if (conversionResult) {
+      setSuccessMsg(
+        `Successfully converted ${conversionResult.amount.toLocaleString(undefined, {
+          maximumFractionDigits: 2,
+        })} ${conversionResult.from_currency} to ${conversionResult.result.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} ${conversionResult.to_currency}!`
+      );
+      queryClient.invalidateQueries({ queryKey: ['history'] });
+
+      const timer = setTimeout(() => setSuccessMsg(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [conversionResult, queryClient]);
 
   const handleSwap = () => {
-    const temp = fromCurrency;
-    setFromCurrency(toCurrency);
-    setToCurrency(temp);
+    const from = getValues('fromCurrency');
+    const to = getValues('toCurrency');
+    setValue('fromCurrency', to);
+    setValue('toCurrency', from);
   };
 
-  const handleConvertSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (amount <= 0) return;
-
-    setIsLogging(true);
-    setTimeout(() => {
-      const newTx: ConversionLog = {
-        id: `tx_${Date.now().toString().slice(-6)}`,
-        date: new Date().toISOString(),
-        fromCurrency,
-        fromAmount: amount,
-        toCurrency,
-        toAmount: convertedAmount,
-        rate,
-        status: 'completed',
-      };
-
-      const updated = [newTx, ...conversions];
-      setConversions(updated);
-      localStorage.setItem('aero:mock-conversions', JSON.stringify(updated));
-
-      // Visual feedback success banner
-      setSuccessMsg(`Successfully logged conversion of ${amount} ${fromCurrency} to ${convertedAmount} ${toCurrency}!`);
-      setIsLogging(false);
-
-      // Clear success notification
-      setTimeout(() => setSuccessMsg(null), 5000);
-    }, 600);
+  const onSubmit = (data: ConversionFormValues) => {
+    setQueryParams({
+      from: data.fromCurrency,
+      to: data.toCurrency,
+      amount: data.amount,
+    });
   };
 
   const toggleAlert = (id: number) => {
@@ -160,7 +172,7 @@ export function DashboardOverview() {
             <div className="text-3xl font-extrabold text-slate-800 tracking-tight mt-1">
               $14,250.50 <span className="text-sm font-bold text-slate-500">USD</span>
             </div>
-            
+
             <div className="wallet-card-list">
               <div className="wallet-mini-card">
                 <span className="wallet-mini-card__currency">USD</span>
@@ -297,7 +309,7 @@ export function DashboardOverview() {
             <ArrowRightLeft size={16} />
             Quick Exchange Tool
           </h2>
-          <form className="space-y-4" onSubmit={handleConvertSubmit}>
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div>
               <label htmlFor="amount" className="block text-xs font-bold text-slate-600 mb-1.5">
                 Transaction Amount
@@ -305,22 +317,35 @@ export function DashboardOverview() {
               <input
                 id="amount"
                 type="number"
-                min="1"
                 step="any"
-                className="w-100 h-11 px-3 border border-slate-200 rounded-xl bg-white/70 focus:outline-none focus:border-teal-600 focus:ring-4 focus:ring-teal-500/10 font-semibold"
-                value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
-                required
+                className={`w-100 h-11 px-3 border rounded-xl bg-white/70 focus:outline-none focus:ring-4 font-semibold ${
+                  errors.amount
+                    ? 'border-rose-400 focus:border-rose-600 focus:ring-rose-500/10'
+                    : 'border-slate-200 focus:border-teal-600 focus:ring-teal-500/10'
+                }`}
+                placeholder="Enter amount..."
+                {...register('amount', { valueAsNumber: true })}
               />
+              {errors.amount && (
+                <span className="text-xs text-rose-500 font-semibold mt-1 block">
+                  {errors.amount.message}
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-5 gap-4 items-end">
               <div className="col-span-2">
-                <CurrencySelector
-                  label="From"
-                  value={fromCurrency}
-                  onChange={setFromCurrency}
-                  exclude={[toCurrency]}
+                <Controller
+                  control={control}
+                  name="fromCurrency"
+                  render={({ field }) => (
+                    <CurrencySelector
+                      label="From"
+                      value={field.value}
+                      onChange={field.onChange}
+                      exclude={[watchedTo]}
+                    />
+                  )}
                 />
               </div>
 
@@ -336,15 +361,27 @@ export function DashboardOverview() {
               </div>
 
               <div className="col-span-2">
-                <CurrencySelector
-                  label="To"
-                  value={toCurrency}
-                  onChange={setToCurrency}
-                  exclude={[fromCurrency]}
+                <Controller
+                  control={control}
+                  name="toCurrency"
+                  render={({ field }) => (
+                    <CurrencySelector
+                      label="To"
+                      value={field.value}
+                      onChange={field.onChange}
+                      exclude={[watchedFrom]}
+                    />
+                  )}
                 />
               </div>
             </div>
+            {errors.toCurrency && (
+              <span className="text-xs text-rose-500 font-semibold block">
+                {errors.toCurrency.message}
+              </span>
+            )}
 
+            {/* Live Rate Preview Card */}
             <div className="p-3 bg-slate-50 border border-slate-200/50 rounded-xl">
               <div className="flex justify-between text-xs text-slate-500">
                 <span>Calculated Rate</span>
@@ -352,22 +389,78 @@ export function DashboardOverview() {
               </div>
               <div className="flex justify-between items-baseline mt-1">
                 <span className="text-sm font-bold text-slate-700">
-                  1 {fromCurrency} = {rate.toFixed(5)} {toCurrency}
+                  {isLoadingLiveRate ? (
+                    <span className="inline-block w-24 h-4 bg-slate-200 animate-pulse rounded" />
+                  ) : (
+                    `1 ${watchedFrom} = ${liveRate.toFixed(5)} ${watchedTo}`
+                  )}
                 </span>
                 <span className="text-xl font-extrabold text-teal-800">
-                  {convertedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {toCurrency}
+                  {isLoadingLiveRate ? (
+                    <span className="inline-block w-20 h-5 bg-slate-200 animate-pulse rounded" />
+                  ) : (
+                    `${estimatedResult.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 4,
+                    })} ${watchedTo}`
+                  )}
                 </span>
               </div>
             </div>
 
+            {/* Conversion Result Card */}
+            {conversionResult && (
+              <div className="p-4 bg-teal-50/80 backdrop-blur-md border border-teal-200/80 rounded-2xl space-y-3 animate-in fade-in slide-in-from-top-3 duration-300">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-teal-800/60 uppercase tracking-wider">Conversion Successful</span>
+                  <span className="text-[10px] font-mono bg-teal-200/50 text-teal-900 px-2 py-0.5 rounded-full">
+                    ID: #{conversionResult.id}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-500">Converted</span>
+                    <span className="text-base font-bold text-slate-800">
+                      {conversionResult.amount.toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      {conversionResult.from_currency}
+                    </span>
+                  </div>
+                  <ArrowRight className="text-teal-600 stroke-[2.5]" size={20} />
+                  <div className="flex flex-col text-right">
+                    <span className="text-xs font-semibold text-slate-500">Received</span>
+                    <span className="text-lg font-extrabold text-teal-900">
+                      {conversionResult.result.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{' '}
+                      {conversionResult.to_currency}
+                    </span>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-teal-200/50 flex justify-between text-xs text-teal-800/80 font-medium">
+                  <span>Rate: 1 {conversionResult.from_currency} = {conversionResult.rate.toFixed(5)} {conversionResult.to_currency}</span>
+                  <span>{new Date(conversionResult.converted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Conversion Error */}
+            {conversionError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
+                Conversion failed: {conversionError.message || 'An unexpected error occurred.'}
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={isLogging || fromCurrency === toCurrency}
-              className="w-100 h-11 bg-gradient-to-r from-teal-700 to-cyan-900 text-white font-bold rounded-xl shadow-lg shadow-teal-700/10 hover:shadow-teal-700/20 hover:scale-[1.01] active:scale-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isConverting || watchedFrom === watchedTo}
+              className="w-100 h-11 bg-gradient-to-r from-teal-700 to-cyan-900 text-white font-bold rounded-xl shadow-lg shadow-teal-700/10 hover:shadow-teal-700/20 hover:scale-[1.01] active:scale-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              {isLogging ? (
+              {isConverting ? (
                 <>
-                  <RefreshCw className="animate-spin" size={16} /> Saving to log...
+                  <RefreshCw className="animate-spin" size={16} /> Converting...
                 </>
               ) : (
                 <>
@@ -405,44 +498,51 @@ export function DashboardOverview() {
                 </tr>
               </thead>
               <tbody>
-                {conversions.slice(0, 4).map((log) => (
-                  <tr key={log.id}>
-                    <td className="text-xs text-slate-400 font-medium">
-                      {new Date(log.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{' '}
-                      <span className="block text-[10px] text-slate-400">
-                        {new Date(log.date).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                      </span>
-                    </td>
-                    <td className="font-bold text-slate-700">
-                      {log.fromAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} {log.fromCurrency}
-                    </td>
-                    <td className="font-extrabold text-teal-800">
-                      {log.toAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} {log.toCurrency}
-                    </td>
-                    <td className="text-sm font-semibold text-slate-500">
-                      {log.rate.toFixed(5)}
-                    </td>
-                    <td>
-                      <span
-                        className={`status-badge ${
-                          log.status === 'completed'
-                            ? 'status-badge--completed'
-                            : log.status === 'pending'
-                            ? 'status-badge--pending'
-                            : 'status-badge--failed'
-                        }`}
-                      >
-                        {log.status}
-                      </span>
+                {isLoadingHistory ? (
+                  Array.from({ length: 4 }).map((_, idx) => (
+                    <tr key={idx}>
+                      <td colSpan={5} className="py-4 text-center">
+                        <div className="h-4 bg-slate-100 animate-pulse rounded w-3/4 mx-auto" />
+                      </td>
+                    </tr>
+                  ))
+                ) : historyError ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-6 text-rose-500 font-semibold">
+                      Failed to load recent conversion history.
                     </td>
                   </tr>
-                ))}
-                {conversions.length === 0 && (
+                ) : recentConversions.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="text-center py-6 text-slate-400 font-medium">
                       No conversions logged yet. Set amounts above to add one.
                     </td>
                   </tr>
+                ) : (
+                  recentConversions.map((log) => (
+                    <tr key={log.id}>
+                      <td className="text-xs text-slate-400 font-medium">
+                        {new Date(log.converted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{' '}
+                        <span className="block text-[10px] text-slate-400">
+                          {new Date(log.converted_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        </span>
+                      </td>
+                      <td className="font-bold text-slate-700">
+                        {log.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} {log.from_currency}
+                      </td>
+                      <td className="font-extrabold text-teal-800">
+                        {log.result.toLocaleString(undefined, { maximumFractionDigits: 2 })} {log.to_currency}
+                      </td>
+                      <td className="text-sm font-semibold text-slate-500">
+                        {log.rate.toFixed(5)}
+                      </td>
+                      <td>
+                        <span className="status-badge status-badge--completed">
+                          completed
+                        </span>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>

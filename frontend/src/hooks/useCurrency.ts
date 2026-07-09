@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { currencyApi } from '../api/endpoints/currency';
-import { CurrencyRateOut } from '../api/types';
+import { historyApi, HistoryFilterParams } from '../api/endpoints/history';
+import { CurrencyRateOut, CurrencyConversionOut, PaginatedHistory } from '../api/types';
 import { ApiError } from '../api/errors';
 
 export const currencyKeys = {
@@ -9,6 +10,8 @@ export const currencyKeys = {
   symbols: () => [...currencyKeys.all, 'symbols'] as const,
   rates: () => [...currencyKeys.all, 'rates'] as const,
   rate: (base: string, target: string) => [...currencyKeys.rates(), base.toUpperCase(), target.toUpperCase()] as const,
+  convert: (from: string, to: string, amount: number) => [...currencyKeys.all, 'convert', from.toUpperCase(), to.toUpperCase(), amount] as const,
+  history: (params?: HistoryFilterParams) => ['history', params] as const,
 };
 
 /**
@@ -71,3 +74,51 @@ export function useCurrencyRate(base?: string, target?: string) {
     retry: 1,
   });
 }
+
+/**
+ * Hook to perform currency conversion using GET /currencies/convert.
+ * Only queries if enabled is true, and parameters are valid.
+ */
+export function useCurrencyConversion(
+  params: { from: string; to: string; amount: number },
+  enabled = true
+) {
+  const cleanFrom = params.from?.trim().toUpperCase();
+  const cleanTo = params.to?.trim().toUpperCase();
+  const isValid = !!cleanFrom && !!cleanTo && cleanFrom.length === 3 && cleanTo.length === 3 && params.amount > 0;
+
+  return useQuery<CurrencyConversionOut, ApiError>({
+    queryKey: currencyKeys.convert(cleanFrom || '', cleanTo || '', params.amount),
+    queryFn: () => currencyApi.convert({ from: cleanFrom!, to: cleanTo!, amount: params.amount }),
+    enabled: enabled && isValid,
+    staleTime: 10 * 1000, // 10 seconds cache validity
+    retry: 1,
+  });
+}
+
+/**
+ * Hook to retrieve user currency conversion history.
+ */
+export function useConversionHistory(params?: HistoryFilterParams) {
+  return useQuery<PaginatedHistory, ApiError>({
+    queryKey: currencyKeys.history(params),
+    queryFn: () => historyApi.getHistory(params),
+    staleTime: 15 * 1000,
+    retry: 1,
+  });
+}
+
+/**
+ * Hook to delete a conversion history record.
+ */
+export function useDeleteHistoryRecord() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, ApiError, number>({
+    mutationFn: (id: number) => historyApi.deleteRecord(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['history'] });
+    },
+  });
+}
+
