@@ -56,8 +56,21 @@ async def get_rate(
             logger.debug(
                 "Cache hit for currency rate", pair=f"{base_upper}{target_upper}"
             )
-            # Construct a transient model instance using cached rate
-            # (last_updated will not represent DB precision, but suffices for reads)
+            # Cache may contain either a plain float (legacy) or a JSON object
+            # with id/last_updated for richer responses.
+            try:
+                cached_data = json.loads(cached_rate)
+                if isinstance(cached_data, dict):
+                    return CurrencyRate(
+                        id=cached_data.get("id"),
+                        base_currency=base_upper,
+                        target_currency=target_upper,
+                        rate=float(cached_data["rate"]),
+                        last_updated=cached_data.get("last_updated"),
+                    )
+            except (json.JSONDecodeError, TypeError):
+                pass
+            # Legacy plain-float cache entry
             return CurrencyRate(
                 base_currency=base_upper,
                 target_currency=target_upper,
@@ -79,11 +92,15 @@ async def get_rate(
     db_rate = result.scalar_one_or_none()
 
     if db_rate:
-        # Populate Cache asynchronously
+        # Populate Cache asynchronously with full rate data
         try:
-            # Cache for configured TTL
+            cache_payload = json.dumps({
+                "id": db_rate.id,
+                "rate": float(db_rate.rate),
+                "last_updated": db_rate.last_updated.isoformat() if db_rate.last_updated else None,
+            })
             await redis.setex(
-                cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, str(float(db_rate.rate))
+                cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, cache_payload
             )
         except Exception as exc:
             logger.error("Failed to update Redis cache", error=str(exc))
@@ -180,10 +197,12 @@ async def update_or_create_rate(
         logger.info("Created new currency pair rate in DB", pair=pair, rate=rate)
 
     # Record to historical rate log
+    from datetime import UTC
     db_history = CurrencyRateHistory(
         base_currency=base_upper,
         target_currency=target_upper,
         rate=rate,
+        timestamp=datetime.now(UTC),
     )
     db.add(db_history)
 
@@ -191,7 +210,12 @@ async def update_or_create_rate(
 
     # Refresh Redis Cache and invalidate trends
     try:
-        await redis.setex(cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, str(rate))
+        cache_payload = json.dumps({
+            "id": db_rate.id,
+            "rate": float(db_rate.rate),
+            "last_updated": db_rate.last_updated.isoformat() if db_rate.last_updated else None,
+        })
+        await redis.setex(cache_key, settings.EXCHANGE_RATE_API_CACHE_TTL, cache_payload)
         # Invalidate trend caches in Redis for this pair
         pattern = f"analytics:trends:{base_upper}:{target_upper}:*"
         keys = await redis.keys(pattern)
@@ -716,11 +740,13 @@ async def backfill_historical_rates(
     db: AsyncSession, base: str, target: str, start_date: datetime, end_date: datetime
 ) -> None:
     """Query provider for timeseries/historical rates and backfill the DB history."""
+    from datetime import UTC
+
     try:
         provider = get_exchange_rate_provider()
         
-        start_str = start_date.date().isoformat()
-        end_str = end_date.date().isoformat()
+        start_str = start_date.date().isoformat() if hasattr(start_date, 'date') else start_date.isoformat()[:10]
+        end_str = end_date.date().isoformat() if hasattr(end_date, 'date') else end_date.isoformat()[:10]
         
         logger.info(
             "Backfilling historical rates from external provider",
@@ -738,13 +764,14 @@ async def backfill_historical_rates(
             symbols=[target],
         )
         
-        # Insert records into DB
+        inserted = 0
         for date_str, rates in ts_data.items():
             if target in rates:
                 rate_val = rates[target]
                 timestamp = datetime.combine(
                     datetime.fromisoformat(date_str).date(),
                     datetime.min.time(),
+                    tzinfo=UTC,
                 )
                 
                 # Check if this record already exists to avoid duplicates
@@ -762,13 +789,21 @@ async def backfill_historical_rates(
                         timestamp=timestamp,
                     )
                     db.add(db_history)
+                    inserted += 1
         await db.flush()
+        logger.info(
+            "Backfill completed",
+            base=base,
+            target=target,
+            records_inserted=inserted,
+        )
     except Exception as exc:
         logger.error(
             "Failed to backfill historical rates from provider",
             base=base,
             target=target,
             error=str(exc),
+            exc_info=True,
         )
 
 
@@ -840,8 +875,9 @@ async def get_rate_trends(
 
     # Backfill history if total count in DB is zero
     if total == 0:
-        backfill_start = start_date or (datetime.utcnow() - timedelta(days=30))
-        backfill_end = end_date or datetime.utcnow()
+        from datetime import UTC
+        backfill_start = start_date or (datetime.now(UTC) - timedelta(days=30))
+        backfill_end = end_date or datetime.now(UTC)
         await backfill_historical_rates(db, base_upper, target_upper, backfill_start, backfill_end)
         
         # Re-execute stats query
@@ -850,6 +886,37 @@ async def get_rate_trends(
         total = total or 0
 
     if total == 0:
+        # Fallback: use the current live rate from currency_rates table
+        # so the graph always has at least one data point.
+        from datetime import UTC
+        current_stmt = select(CurrencyRate).where(
+            CurrencyRate.base_currency == base_upper,
+            CurrencyRate.target_currency == target_upper,
+        )
+        current_rate = (await db.execute(current_stmt)).scalar_one_or_none()
+        if current_rate:
+            now = datetime.now(UTC)
+            return {
+                "base_currency": base_upper,
+                "target_currency": target_upper,
+                "trends": [
+                    {
+                        "rate": float(current_rate.rate),
+                        "timestamp": now.isoformat(),
+                    }
+                ],
+                "total": 1,
+                "page": page,
+                "limit": limit,
+                "pages": 1,
+                "stats": {
+                    "average_rate": float(current_rate.rate),
+                    "percentage_change": 0.0,
+                    "min_rate": float(current_rate.rate),
+                    "max_rate": float(current_rate.rate),
+                },
+            }
+
         empty_res = {
             "base_currency": base_upper,
             "target_currency": target_upper,

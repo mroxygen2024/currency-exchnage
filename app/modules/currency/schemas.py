@@ -30,8 +30,8 @@ class CurrencyRateUpdate(BaseModel):
 class CurrencyRateOut(CurrencyRateBase):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    last_updated: datetime
+    id: int | None = None
+    last_updated: datetime | None = None
 
 
 class CurrencyConversionOut(BaseModel):

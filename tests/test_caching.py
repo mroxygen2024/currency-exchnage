@@ -40,9 +40,12 @@ async def test_exchange_rate_caching_and_expiration(
     assert res1 is not None
     assert float(res1.rate) == 0.80
     mock_redis.get.assert_called_once_with("rate:USD:GBP")
-    mock_redis.setex.assert_called_once_with(
-        "rate:USD:GBP", settings.CACHE_EXPIRE_SECONDS, "0.8"
-    )
+    # Cache now stores JSON with id, rate, last_updated
+    setex_args = mock_redis.setex.call_args
+    assert setex_args[0][0] == "rate:USD:GBP"
+    assert setex_args[0][1] == settings.CACHE_EXPIRE_SECONDS
+    cached_payload = json.loads(setex_args[0][2])
+    assert cached_payload["rate"] == 0.80
     assert settings.CACHE_EXPIRE_SECONDS == 600  # 10 minutes
 
     # Reset mock call counters
@@ -69,9 +72,11 @@ async def test_exchange_rate_caching_and_expiration(
 
     # 5. Perform clean update using the service, which updates the cache
     await update_or_create_rate(db_session, mock_redis, "USD", "GBP", 0.90)
-    mock_redis.setex.assert_called_with(
-        "rate:USD:GBP", settings.CACHE_EXPIRE_SECONDS, "0.9"
-    )
+    setex_args2 = mock_redis.setex.call_args
+    assert setex_args2[0][0] == "rate:USD:GBP"
+    assert setex_args2[0][1] == settings.CACHE_EXPIRE_SECONDS
+    cached_payload2 = json.loads(setex_args2[0][2])
+    assert cached_payload2["rate"] == 0.90
 
     # 6. Third call: Cache hit with updated value
     res3 = await get_rate(db_session, mock_redis, "USD", "GBP")
