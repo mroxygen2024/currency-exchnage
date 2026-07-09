@@ -25,6 +25,8 @@ async def health_check(
     """
     db_status = "down"
     redis_status = "down"
+    db_error = None
+    redis_error = None
 
     # Test database connectivity
     try:
@@ -32,9 +34,10 @@ async def health_check(
         await db.execute(text("SELECT 1"))
         db_status = "up"
     except Exception as exc:
+        db_error = str(exc)
         logger.error(
             "Healthcheck failure: PostgreSQL database is unreachable.",
-            error=str(exc),
+            error=db_error,
             exc_info=True,
         )
 
@@ -42,10 +45,13 @@ async def health_check(
     try:
         ping_success = await redis.ping()
         redis_status = "up" if ping_success else "down"
+        if not ping_success:
+            redis_error = "Ping returned false"
     except Exception as exc:
+        redis_error = str(exc)
         logger.error(
             "Healthcheck failure: Redis cache is unreachable.",
-            error=str(exc),
+            error=redis_error,
             exc_info=True,
         )
 
@@ -54,7 +60,7 @@ async def health_check(
     if not is_healthy:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
-    return {
+    result = {
         "status": "healthy" if is_healthy else "unhealthy",
         "timestamp": datetime.now(UTC).isoformat(),
         "services": {
@@ -62,3 +68,15 @@ async def health_check(
             "cache": redis_status,
         },
     }
+
+    # Include error details in non-production environments for debugging
+    if not is_healthy:
+        errors = {}
+        if db_error:
+            errors["database"] = db_error
+        if redis_error:
+            errors["cache"] = redis_error
+        if errors:
+            result["errors"] = errors
+
+    return result

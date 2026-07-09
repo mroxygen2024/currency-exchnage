@@ -49,19 +49,26 @@ class Settings(BaseSettings):
         """Enforce strict security validation in production environment."""
         if self.ENV == "production":
             if not self.SECRET_KEY or len(self.SECRET_KEY) < 32:
-                raise ValueError("SECRET_KEY must be at least 32 characters in production.")
+                raise ValueError(
+                    "SECRET_KEY must be at least 32 characters in production."
+                )
             if "*" in self.BACKEND_CORS_ORIGINS:
-                raise ValueError("Wildcard CORS origins '*' is not allowed in production.")
+                raise ValueError(
+                    "Wildcard CORS origins '*' is not allowed in production."
+                )
         return self
 
     # --------------------------------------------------------------------------
     # Database Configuration (PostgreSQL)
     # --------------------------------------------------------------------------
+    DATABASE_URL: str = ""
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_DB: str = "currency_tracker"
+    DATABASE_SSLMODE: str = ""
+    PGCHANNELBINDING: str = ""
 
     # Pool Settings
     DB_POOL_SIZE: int = 10
@@ -72,6 +79,7 @@ class Settings(BaseSettings):
     # --------------------------------------------------------------------------
     # Cache Configuration (Redis)
     # --------------------------------------------------------------------------
+    REDIS_URL: str = ""
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
@@ -105,18 +113,64 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def async_database_url(self) -> str:
-        """Construct the async database URL using the asyncpg driver."""
-        return (
+        """Construct the async database URL using the asyncpg driver.
+
+        If DATABASE_URL is provided (e.g. from Render), use it directly.
+        Otherwise, construct from individual components with SSL support.
+        """
+        if self.DATABASE_URL:
+            url = self.DATABASE_URL
+            # Upgrade standard postgresql:// to async:// driver
+            if url.startswith("postgresql://"):
+                url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+            elif url.startswith("postgres://"):
+                url = "postgresql+asyncpg://" + url[len("postgres://"):]
+            # Ensure sslmode is present for Render (which requires SSL)
+            if self.DATABASE_SSLMODE and "sslmode" not in url:
+                separator = "&" if "?" in url else "?"
+                url = f"{url}{separator}sslmode={self.DATABASE_SSLMODE}"
+            elif self.ENV == "production" and "sslmode" not in url:
+                separator = "&" if "?" in url else "?"
+                url = f"{url}{separator}sslmode=require"
+            return url
+
+        # Fallback: construct from individual components
+        base_url = (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+        # Build query parameters
+        params = []
+        if self.ENV == "production" or self.DATABASE_SSLMODE:
+            sslmode = self.DATABASE_SSLMODE or "require"
+            params.append(f"sslmode={sslmode}")
+        if self.PGCHANNELBINDING:
+            params.append(f"channel_binding={self.PGCHANNELBINDING}")
+        if params:
+            base_url = f"{base_url}?{'&'.join(params)}"
+        return base_url
 
     @computed_field
     @property
     def redis_url(self) -> str:
-        """Construct the Redis connection URL."""
+        """Construct the Redis connection URL.
+
+        If REDIS_URL is provided (e.g. from Render), use it directly.
+        Otherwise, construct from individual components with SSL support.
+        """
+        if self.REDIS_URL:
+            url = self.REDIS_URL
+            # Render uses rediss:// (SSL) - keep as-is
+            # Ensure proper scheme
+            if url.startswith("redis://") and self.ENV == "production":
+                url = url.replace("redis://", "rediss://", 1)
+            return url
+
+        # Fallback: construct from individual components
         password_part = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
-        return f"redis://{password_part}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+        # Use rediss:// for production (Render requires SSL)
+        scheme = "rediss" if self.ENV == "production" else "redis"
+        return f"{scheme}://{password_part}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 
 settings = Settings()

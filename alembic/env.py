@@ -12,6 +12,16 @@ from app.core.config import settings
 from app.core.database import Base
 
 # Import all models to ensure they are registered on Base.metadata
+from app.modules.auth.models import RefreshToken, User  # noqa: F401
+from app.modules.currency.models import (  # noqa: F401
+    CurrencyConversion,
+    CurrencyRate,
+    CurrencyRateHistory,
+)
+from app.modules.favorites.models import FavoritePair  # noqa: F401
+from app.modules.notifications.models import (  # noqa: F401
+    NotificationSubscription,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -29,7 +29,17 @@ services:
       - key: SECRET_KEY
         generateValue: true
 
-      # PostgreSQL Database Connections (Linked from managed database)
+      # CORS Configuration (add your Vercel frontend URL)
+      - key: BACKEND_CORS_ORIGINS
+        value: "https://aero-exchange.vercel.app,https://aero-exchange-git-main.vercel.app,https://aero-exchange-*.vercel.app"
+
+      # PostgreSQL Database - Use full connection string from managed database
+      - key: DATABASE_URL
+        fromDatabase:
+          name: currency-db
+          property: connectionString
+
+      # PostgreSQL Database - Individual components (fallback)
       - key: POSTGRES_SERVER
         fromDatabase:
           name: currency-db
@@ -51,7 +61,14 @@ services:
           name: currency-db
           property: database
 
-      # Redis Cache Connections (Linked from managed Redis service)
+      # Redis Cache - Use full connection string from managed Redis
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: currency-redis
+          property: connectionString
+
+      # Redis Cache - Individual components (fallback)
       - key: REDIS_HOST
         fromService:
           type: redis
@@ -67,6 +84,10 @@ services:
           type: redis
           name: currency-redis
           property: password
+
+      # Exchange Rate API (set this value in Render Dashboard manually)
+      - key: EXCHANGE_RATE_API_KEY
+        sync: false
 
 databases:
   # Managed PostgreSQL Database
