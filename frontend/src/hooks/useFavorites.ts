@@ -21,7 +21,31 @@ export function useAddFavorite() {
 
   return useMutation<FavoritePairOut, ApiError, FavoritePairCreate>({
     mutationFn: (data) => favoritesApi.addFavorite(data),
-    onSuccess: () => {
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: favoritesKeys.all });
+
+      const previous = queryClient.getQueryData<FavoritePairOut[]>(favoritesKeys.all);
+
+      queryClient.setQueryData<FavoritePairOut[]>(favoritesKeys.all, (old) => {
+        if (!old) return old;
+        const optimistic: FavoritePairOut = {
+          id: Date.now(),
+          user_id: 0,
+          base_currency: data.base_currency.toUpperCase(),
+          target_currency: data.target_currency.toUpperCase(),
+          created_at: new Date(),
+        };
+        return [...old, optimistic];
+      });
+
+      return { previous };
+    },
+    onError: (_err, _data, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(favoritesKeys.all, context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: favoritesKeys.all });
     },
   });
@@ -32,7 +56,24 @@ export function useDeleteFavorite() {
 
   return useMutation<{ success: boolean; message: string }, ApiError, number>({
     mutationFn: (id) => favoritesApi.deleteFavorite(id),
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: favoritesKeys.all });
+
+      const previous = queryClient.getQueryData<FavoritePairOut[]>(favoritesKeys.all);
+
+      queryClient.setQueryData<FavoritePairOut[]>(favoritesKeys.all, (old) => {
+        if (!old) return old;
+        return old.filter((f) => f.id !== id);
+      });
+
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(favoritesKeys.all, context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: favoritesKeys.all });
     },
   });

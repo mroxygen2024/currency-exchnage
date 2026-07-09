@@ -1,178 +1,255 @@
-import { useState, useMemo } from 'react';
-import { Plus, Star, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Plus, Star, ArrowRightLeft, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useFavorites, useAddFavorite, useDeleteFavorite } from '../../hooks/useFavorites';
 import { useRealtimeRates } from '../../hooks/useRealtimeRates';
-import { useAllRates, useSupportedCurrencies } from '../../hooks/useCurrency';
+import { useAllRates } from '../../hooks/useCurrency';
+import { CurrencySelector } from '../../components/CurrencySelector';
+import { FavoriteCard } from '../../components/dashboard/FavoriteCard';
 import { AnimatedCard } from '../../components/ui/AnimatedCard';
 import { CardSkeleton } from '../../components/ui/LoadingSkeleton';
 
-const FALLBACK_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF'];
+const addFavoriteSchema = z.object({
+  base_currency: z.string().length(3, 'Select a base currency'),
+  target_currency: z.string().length(3, 'Select a target currency'),
+}).refine((data) => data.base_currency !== data.target_currency, {
+  message: 'Currencies must be different',
+  path: ['target_currency'],
+});
+
+type AddFavoriteForm = z.infer<typeof addFavoriteSchema>;
 
 export function DashboardFavorites() {
-  const { data: favorites, isLoading: isLoadingFavs } = useFavorites();
+  const { data: favorites, isLoading: isLoadingFavs, error: favsError, refetch: refetchFavs } = useFavorites();
   const addFavorite = useAddFavorite();
   const deleteFavorite = useDeleteFavorite();
-  const { data: currencies } = useSupportedCurrencies();
   const { data: allRates } = useAllRates();
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const [fromCurrency, setFromCurrency] = useState('USD');
-  const [toCurrency, setToCurrency] = useState('EUR');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<AddFavoriteForm>({
+    resolver: zodResolver(addFavoriteSchema),
+    defaultValues: { base_currency: 'USD', target_currency: 'EUR' },
+  });
 
-  const pairKeys = useMemo(() => (favorites || []).map((f) => `${f.base_currency}${f.target_currency}`), [favorites]);
+  const pairKeys = useMemo(
+    () => (favorites || []).map((f) => `${f.base_currency}${f.target_currency}`),
+    [favorites],
+  );
   const wsRates = useRealtimeRates(pairKeys);
 
-  const rateMap = useMemo(() => {
-    const m = new Map<string, number>();
+  const previousRatesRef = useMemo(() => {
+    const map = new Map<string, number>();
     if (allRates) {
       for (const r of allRates) {
-        m.set(`${r.base_currency}/${r.target_currency}`, r.rate);
+        map.set(`${r.base_currency}/${r.target_currency}`, r.rate);
       }
     }
-    return m;
+    return map;
   }, [allRates]);
 
-  const displayCurrencies = currencies || FALLBACK_CURRENCIES;
-
-  const handleAddFavorite = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    if (fromCurrency === toCurrency) {
-      setErrorMsg('Cannot pair a currency with itself.');
-      return;
-    }
-    addFavorite.mutate(
-      { base_currency: fromCurrency, target_currency: toCurrency },
-      {
-        onError: (err) => setErrorMsg(err.message || 'Failed to add favorite.'),
+  const handleRemove = useCallback(
+    (id: number) => {
+      deleteFavorite.mutate(id, {
         onSuccess: () => {
-          setFromCurrency('USD');
-          setToCurrency('EUR');
+          setSuccessMsg('Pair removed from your favorites.');
         },
-      }
+      });
+    },
+    [deleteFavorite],
+  );
+
+  const onSubmit = (data: AddFavoriteForm) => {
+    addFavorite.mutate(
+      { base_currency: data.base_currency, target_currency: data.target_currency },
+      {
+        onSuccess: () => {
+          setSuccessMsg(`${data.base_currency}/${data.target_currency} added to your favorites.`);
+          reset();
+        },
+        onError: () => {},
+      },
     );
   };
+
+  useEffect(() => {
+    if (!successMsg) return;
+    const timer = setTimeout(() => setSuccessMsg(null), 4000);
+    return () => clearTimeout(timer);
+  }, [successMsg]);
 
   return (
     <div className="space-y-6">
       <div className="dashboard-page-title">
         <h1>Favorite Currency Pairs</h1>
-        <p>Monitor real-time price updates for your configured target pairings.</p>
+        <p>Track your monitored pairs with live or cached exchange rate data.</p>
       </div>
 
+      {successMsg && (
+        <div className="fav-toast animate-in fade-in slide-in-from-top-3 duration-300">
+          <Star className="text-amber-500 flex-shrink-0" size={16} />
+          <span className="text-sm font-semibold">{successMsg}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <AnimatedCard delay={0} className="h-fit">
-          <h2 className="glass-widget__title"><Plus size={16} /> Add Favorite Pair</h2>
-          <form className="space-y-4" onSubmit={handleAddFavorite}>
-            <div>
-              <label htmlFor="fav-from" className="block text-xs font-bold text-slate-600 mb-1.5">Base Currency (From)</label>
-              <select
-                id="fav-from"
-                className="w-full h-11 px-3 border border-slate-200 rounded-xl bg-white/70 focus:outline-none focus:border-teal-600 font-bold"
-                value={fromCurrency}
-                onChange={(e) => setFromCurrency(e.target.value)}
+        <AnimatedCard delay={0} className="h-fit lg:col-span-1">
+          <h2 className="glass-widget__title">
+            <Plus size={16} /> Add Favorite Pair
+          </h2>
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} data-testid="add-favorite-form">
+            <Controller
+              control={control}
+              name="base_currency"
+              render={({ field }) => (
+                <CurrencySelector
+                  label="Base Currency"
+                  value={field.value}
+                  onChange={field.onChange}
+                  exclude={[]}
+                />
+              )}
+            />
+
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  const base = control._formValues.base_currency;
+                  const target = control._formValues.target_currency;
+                  control.setValue('base_currency', target);
+                  control.setValue('target_currency', base);
+                }}
+                className="fav-form__swap"
+                aria-label="Swap currencies"
               >
-                {displayCurrencies.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+                <ArrowRightLeft size={14} />
+              </button>
             </div>
-            <div>
-              <label htmlFor="fav-to" className="block text-xs font-bold text-slate-600 mb-1.5">Quote Currency (To)</label>
-              <select
-                id="fav-to"
-                className="w-full h-11 px-3 border border-slate-200 rounded-xl bg-white/70 focus:outline-none focus:border-teal-600 font-bold"
-                value={toCurrency}
-                onChange={(e) => setToCurrency(e.target.value)}
-              >
-                {displayCurrencies.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            {errorMsg && <p className="text-xs font-bold text-red-600 p-2 bg-red-50 rounded-lg border border-red-200">{errorMsg}</p>}
-            {addFavorite.isError && (
-              <p className="text-xs font-bold text-red-600 p-2 bg-red-50 rounded-lg border border-red-200">
-                {addFavorite.error?.message || 'Failed to add favorite.'}
+
+            <Controller
+              control={control}
+              name="target_currency"
+              render={({ field }) => (
+                <CurrencySelector
+                  label="Quote Currency"
+                  value={field.value}
+                  onChange={field.onChange}
+                  exclude={[]}
+                />
+              )}
+            />
+
+            {(errors.base_currency || errors.target_currency) && (
+              <p className="fav-form__error" data-testid="form-error">
+                {errors.base_currency?.message || errors.target_currency?.message}
               </p>
             )}
+
+            {addFavorite.isError && (
+              <div className="fav-form__api-error" data-testid="api-error">
+                <AlertTriangle size={14} />
+                <span>{addFavorite.error?.message || 'Failed to add favorite.'}</span>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={addFavorite.isPending}
-              className="w-full h-11 bg-slate-800 text-white font-bold rounded-xl hover:bg-teal-700 transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              className="fav-form__submit"
+              data-testid="add-favorite-submit"
             >
-              {addFavorite.isPending ? 'Adding...' : <><Star size={16} /> Add to Monitor list</>}
+              {addFavorite.isPending ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" /> Adding...
+                </>
+              ) : (
+                <>
+                  <Star size={14} /> Add to Watchlist
+                </>
+              )}
             </button>
           </form>
         </AnimatedCard>
 
         <div className="lg:col-span-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {isLoadingFavs ? (
-              Array.from({ length: 2 }).map((_, i) => <CardSkeleton key={i} />)
-            ) : !favorites || favorites.length === 0 ? (
-              <div className="col-span-full glass-widget text-center py-12 text-slate-400 animate-in fade-in">
-                <Star className="mx-auto text-slate-300 mb-2" size={32} />
-                <p className="font-semibold text-sm">No favorite pairs monitored.</p>
-                <p className="text-xs text-slate-400 mt-1">Configure pair selection on the left to add one.</p>
+          {isLoadingFavs ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <CardSkeleton key={i} />
+              ))}
+            </div>
+          ) : favsError ? (
+            <AnimatedCard delay={0}>
+              <div className="fav-empty-state">
+                <AlertTriangle size={28} className="text-rose-400" />
+                <p className="text-sm font-semibold text-rose-700">Failed to load favorites</p>
+                <p className="text-xs text-rose-500">{favsError.message}</p>
+                <button
+                  type="button"
+                  onClick={() => refetchFavs()}
+                  className="fav-retry-btn"
+                  data-testid="retry-favorites"
+                >
+                  <RefreshCw size={14} /> Retry
+                </button>
               </div>
-            ) : (
-              favorites.map((fav, idx) => {
-                const pairKey = `${fav.base_currency}${fav.target_currency}`;
-                const wsRate = wsRates.rates[pairKey];
-                const cachedRate = rateMap.get(`${fav.base_currency}/${fav.target_currency}`) || 0;
-                const currentRate = wsRate || cachedRate || 0;
-                const bid = currentRate * 0.9995;
-                const ask = currentRate * 1.0005;
-                const direction = wsRate && cachedRate ? (wsRate > cachedRate ? 'up' : 'down') : 'up';
-                const change = wsRate && cachedRate
-                  ? `${((wsRate - cachedRate) / cachedRate * 100).toFixed(2)}%`
-                  : '+0.00%';
+            </AnimatedCard>
+          ) : !favorites || favorites.length === 0 ? (
+            <AnimatedCard delay={0}>
+              <div className="fav-empty-state" data-testid="empty-favorites">
+                <Star className="text-slate-300 mb-1" size={36} />
+                <p className="text-sm font-semibold text-slate-500">No favorite pairs yet</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Use the form on the left to add a currency pair to your watchlist.
+                </p>
+              </div>
+            </AnimatedCard>
+          ) : (
+            <>
+              <div className="fav-count-bar">
+                <span className="fav-count-bar__label">
+                  Monitoring {favorites.length} {favorites.length === 1 ? 'pair' : 'pairs'}
+                </span>
+                <span className="fav-count-bar__status">
+                  {wsRates.status === 'connected' ? (
+                    <span className="fav-count-bar__live">Connected</span>
+                  ) : wsRates.status === 'connecting' ? (
+                    'Connecting...'
+                  ) : (
+                    'Offline'
+                  )}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" data-testid="favorites-grid">
+                {favorites.map((fav, idx) => {
+                  const wsKey = `${fav.base_currency}${fav.target_currency}`;
+                  const wsRate = wsRates.rates[wsKey];
+                  const cachedRate = previousRatesRef.get(`${fav.base_currency}/${fav.target_currency}`) || 0;
+                  const currentRate = wsRate || cachedRate;
 
-                return (
-                  <div
-                    key={fav.id}
-                    className="glass-widget flex-row justify-between items-center gap-4 hover:scale-[1.01] animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
-                    style={{ animationDelay: `${idx * 80}ms` }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-base font-extrabold text-slate-800">{fav.base_currency} / {fav.target_currency}</span>
-                        <span className={`inline-flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded-full ${direction === 'up' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                          {direction === 'up' ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                          {change}
-                        </span>
-                      </div>
-                      <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
-                        {wsRates.status === 'connected' ? 'Live Feed' : 'Cached'}
-                      </span>
-                      <div className="grid grid-cols-2 gap-4 mt-3 border-t border-slate-100 pt-3">
-                        <div>
-                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Bid (Sell)</span>
-                          <span className="text-sm font-extrabold text-slate-700 tabular-nums">{bid.toFixed(4)}</span>
-                        </div>
-                        <div>
-                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Ask (Buy)</span>
-                          <span className="text-sm font-extrabold text-slate-700 tabular-nums">{ask.toFixed(4)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-3 self-stretch justify-between">
-                      <div className="text-right">
-                        <span className="text-xs font-extrabold text-slate-400 block">MID PRICE</span>
-                        <span className="text-xl font-black text-slate-800 tabular-nums">{currentRate.toFixed(4)}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => deleteFavorite.mutate(fav.id)}
-                        disabled={deleteFavorite.isPending}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
-                        aria-label={`Remove ${fav.base_currency}/${fav.target_currency} from favorites`}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+                  return (
+                    <FavoriteCard
+                      key={fav.id}
+                      favorite={fav}
+                      currentRate={currentRate}
+                      previousRate={cachedRate}
+                      isLive={!!wsRate}
+                      isRemoving={deleteFavorite.isPending}
+                      onRemove={handleRemove}
+                      delay={idx * 60}
+                    />
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

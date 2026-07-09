@@ -12,11 +12,13 @@ import {
   History,
   Plus,
   RefreshCw,
+  Star,
   TrendingUp,
   Wallet,
   X,
 } from 'lucide-react';
 import { CurrencySelector } from '../../components/CurrencySelector';
+import { useFavorites, useDeleteFavorite } from '../../hooks/useFavorites';
 import {
   useCurrencyRate,
   useCurrencyConversion,
@@ -59,6 +61,8 @@ export function DashboardOverview() {
   const analytics = useSystemAnalytics();
   const { data: alerts, isLoading: isLoadingAlerts } = useNotificationSubscriptions();
   const deleteAlert = useDeleteAlert();
+  const { data: favorites } = useFavorites();
+  const deleteFavorite = useDeleteFavorite();
 
   const pairToRate = new Map<string, number>();
   if (allRates) {
@@ -270,6 +274,39 @@ export function DashboardOverview() {
           </div>
         </AnimatedCard>
       </div>
+
+      {favorites && favorites.length > 0 && (
+        <AnimatedCard delay={250}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="glass-widget__title mb-0"><Star size={16} /> Favorite Pairs</h2>
+            <Link to="/dashboard/favorites" className="text-xs font-bold text-teal-600 hover:text-teal-800 transition-colors">View All</Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {favorites.slice(0, 3).map((fav) => {
+              const pairRate = pairToRate.get(`${fav.base_currency}/${fav.target_currency}`) || 0;
+              return (
+                <div key={fav.id} className="p-3 bg-white/60 border border-slate-200/60 rounded-xl flex items-center justify-between gap-3 hover:bg-white/80 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-bold text-slate-700 block">{fav.base_currency} / {fav.target_currency}</span>
+                    <span className="text-lg font-extrabold text-slate-800 tabular-nums">
+                      {pairRate > 0 ? pairRate.toFixed(4) : '--'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteFavorite.mutate(fav.id)}
+                    disabled={deleteFavorite.isPending}
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                    aria-label={`Remove ${fav.base_currency}/${fav.target_currency} from favorites`}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </AnimatedCard>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <AnimatedCard delay={300} className="lg:col-span-2">
