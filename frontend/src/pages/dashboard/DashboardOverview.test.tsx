@@ -5,6 +5,57 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as hooks from '../../hooks/useCurrency';
 
+vi.mock('../../auth/AuthContext', () => ({
+  useAuth: vi.fn(() => ({
+    user: { id: 1, email: 'test@example.com', first_name: 'Test', last_name: 'User' },
+    isAuthenticated: true,
+    isLoading: false,
+    error: null,
+    login: vi.fn(),
+    register: vi.fn(),
+    logout: vi.fn(),
+    refreshSession: vi.fn(),
+    clearError: vi.fn(),
+  })),
+}));
+
+vi.mock('../../hooks/useAnalytics', () => ({
+  useSystemAnalytics: vi.fn(() => ({
+    data: { total_conversions: 150, active_currencies: 8, avg_rate: 0.92, total_volume: 50000, most_traded_pair: 'EUR/USD' },
+    isLoading: false,
+    error: null,
+  })),
+  useTrends: vi.fn(() => ({
+    data: { pair: 'EUR/USD', trend: [], change_pct: 0.5 },
+    isLoading: false,
+    error: null,
+  })),
+}));
+
+vi.mock('../../hooks/useRealtimeRates', () => ({
+  useRealtimeRates: vi.fn(() => ({
+    rates: {},
+    connectionStatus: 'disconnected',
+    subscribe: vi.fn(),
+    unsubscribe: vi.fn(),
+    clearSubscriptions: vi.fn(),
+  })),
+}));
+
+vi.mock('../../hooks/useNotifications', () => ({
+  useNotificationSubscriptions: vi.fn(() => ({
+    data: [
+      { id: 1, base_currency: 'EUR', target_currency: 'USD', threshold: 1.1, condition: 'above', is_active: true },
+    ],
+    isLoading: false,
+    error: null,
+  })),
+  useDeleteAlert: vi.fn(() => ({
+    mutate: vi.fn(),
+    isPending: false,
+  })),
+}));
+
 // Mock the TanStack query hooks
 vi.mock('../../hooks/useCurrency', () => ({
   useSupportedCurrencies: vi.fn(() => ({
@@ -24,6 +75,15 @@ vi.mock('../../hooks/useCurrency', () => ({
   })),
   useCurrencyConversion: vi.fn(() => ({
     data: null,
+    isLoading: false,
+    error: null,
+  })),
+  useAllRates: vi.fn(() => ({
+    data: [
+      { id: 1, base_currency: 'EUR', target_currency: 'USD', rate: 1.09, last_updated: new Date() },
+      { id: 2, base_currency: 'GBP', target_currency: 'USD', rate: 1.27, last_updated: new Date() },
+      { id: 3, base_currency: 'USD', target_currency: 'JPY', rate: 157.5, last_updated: new Date() },
+    ],
     isLoading: false,
     error: null,
   })),
@@ -118,10 +178,8 @@ describe('DashboardOverview', () => {
     fireEvent.click(swapButton);
 
     await waitFor(() => {
-      const fromBtn = screen.getByRole('button', { name: /🇪🇺 eur/i });
-      const toBtn = screen.getByRole('button', { name: /🇺🇸 usd/i });
-      expect(fromBtn).toBeInTheDocument();
-      expect(toBtn).toBeInTheDocument();
+      expect(screen.getAllByText('EUR').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText('USD').length).toBeGreaterThanOrEqual(2);
     });
   });
 

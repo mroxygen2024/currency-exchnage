@@ -17,6 +17,7 @@ export { currencyApi } from './endpoints/currency';
 export { historyApi, type HistoryFilterParams, type HistoryExportParams } from './endpoints/history';
 export { favoritesApi } from './endpoints/favorites';
 export { notificationsApi } from './endpoints/notifications';
+export { analyticsApi } from './endpoints/analytics';
 export { healthApi } from './endpoints/health';
 
 // Zod Validation Schemas

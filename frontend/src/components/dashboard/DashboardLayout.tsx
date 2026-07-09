@@ -12,19 +12,12 @@ import {
   Star,
   User,
   X,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { useAuth } from '../../auth/AuthContext';
+import { useNotificationSubscriptions } from '../../hooks/useNotifications';
 import '../../pages/dashboard/Dashboard.css';
-
-// Mock Notification structure
-interface NotificationItem {
-  id: string;
-  title: string;
-  desc: string;
-  time: string;
-  unread: boolean;
-}
 
 export function DashboardLayout() {
   const navigate = useNavigate();
@@ -35,30 +28,15 @@ export function DashboardLayout() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
-  // Notifications Mock State
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: '1',
-      title: 'Alert Triggered: EUR/USD',
-      desc: 'The EUR/USD pair has crossed your target threshold of 1.0950.',
-      time: '10 mins ago',
-      unread: true,
-    },
-    {
-      id: '2',
-      title: 'Successful Currency Conversion',
-      desc: 'You converted 500.00 USD to 460.50 EUR successfully.',
-      time: '2 hours ago',
-      unread: true,
-    },
-    {
-      id: '3',
-      title: 'System Synced',
-      desc: 'Institutional rates updated from ECB and major market feeds.',
-      time: '5 hours ago',
-      unread: false,
-    },
-  ]);
+  const { data: subscriptions, isLoading: notifLoading } = useNotificationSubscriptions();
+
+  const notifications = (subscriptions || []).map((sub) => ({
+    id: String(sub.id),
+    title: `${sub.base_currency}/${sub.target_currency} ${sub.condition} ${sub.threshold}`,
+    desc: sub.is_active ? 'Active alert rule' : 'Inactive alert rule',
+    time: new Date(sub.created_at).toLocaleDateString(),
+    unread: sub.is_active,
+  }));
 
   const notificationsRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -91,16 +69,6 @@ export function DashboardLayout() {
   const handleLogout = async () => {
     await logout();
     navigate('/', { replace: true });
-  };
-
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
-  };
-
-  const handleNotificationClick = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
-    );
   };
 
   const unreadCount = notifications.filter((n) => n.unread).length;
@@ -271,20 +239,16 @@ export function DashboardLayout() {
                 <div className="glass-dropdown" role="menu">
                   <div className="glass-dropdown__header">
                     <span className="glass-dropdown__title">Notifications</span>
-                    {unreadCount > 0 && (
-                      <button
-                        type="button"
-                        className="glass-dropdown__action"
-                        onClick={handleMarkAllRead}
-                      >
-                        Mark all as read
-                      </button>
-                    )}
                   </div>
                   <div className="glass-dropdown__list">
-                    {notifications.length === 0 ? (
+                    {notifLoading ? (
                       <div className="glass-dropdown__empty">
-                        All caught up! No notifications.
+                        Loading...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="glass-dropdown__empty">
+                        <AlertTriangle size={16} className="text-slate-400" />
+                        <span>No alert rules configured.</span>
                       </div>
                     ) : (
                       notifications.map((notif) => (
@@ -294,7 +258,6 @@ export function DashboardLayout() {
                             notif.unread ? 'glass-dropdown__item--unread' : ''
                           }`}
                           role="menuitem"
-                          onClick={() => handleNotificationClick(notif.id)}
                         >
                           <div className="glass-dropdown__item-content">
                             <div className="glass-dropdown__item-title">

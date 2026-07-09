@@ -3,3 +3,6 @@ export type { ConnectionStatus, UseWebSocketOptions, UseWebSocketReturn } from '
 export { useRealtimeRates } from './useRealtimeRates';
 export type { RateUpdate, RealtimeRatesState } from './useRealtimeRates';
 export { useCurrencyConversion, useCurrencyRate, useAllRates, useSupportedCurrencies, useCurrencySymbols, useConversionHistory, useDeleteHistoryRecord } from './useCurrency';
+export { useFavorites, useAddFavorite, useDeleteFavorite } from './useFavorites';
+export { useNotificationSubscriptions, useSubscribeAlert, useDeleteAlert } from './useNotifications';
+export { useSystemAnalytics, useTrends } from './useAnalytics';
