@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import (
+    AppException,
     BadRequestException,
     ForbiddenException,
     NotFoundException,
@@ -24,6 +25,12 @@ from app.modules.currency.models import (
 )
 from app.modules.currency.websocket import ws_manager
 from app.modules.currency.providers import get_exchange_rate_provider
+from app.modules.currency.providers.exceptions import (
+    ExchangeRateProviderException,
+    InvalidApiKeyException,
+    ProviderDowntimeException,
+    RateLimitExceededException,
+)
 
 
 def _get_cache_key(base: str, target: str) -> str:
@@ -95,12 +102,47 @@ async def get_rate(
             # Save new rate to DB and cache via update_or_create_rate (updates cache and broadcasts WebSockets)
             db_rate = await update_or_create_rate(db, redis, base_upper, target_upper, rate_val)
             return db_rate
+    except InvalidApiKeyException as exc:
+        logger.error(
+            "Exchange rate API key is invalid or missing. "
+            "Set EXCHANGE_RATE_API_KEY in your environment.",
+            base=base_upper,
+            target=target_upper,
+            error=str(exc),
+        )
+        raise
+    except RateLimitExceededException as exc:
+        logger.warn(
+            "Exchange rate API rate limit exceeded",
+            base=base_upper,
+            target=target_upper,
+            error=str(exc),
+        )
+        raise
+    except ProviderDowntimeException as exc:
+        logger.error(
+            "Exchange rate provider is unreachable",
+            base=base_upper,
+            target=target_upper,
+            error=str(exc),
+        )
+        raise
+    except ExchangeRateProviderException as exc:
+        logger.error(
+            "Exchange rate provider error",
+            base=base_upper,
+            target=target_upper,
+            error_code=exc.code,
+            error=str(exc),
+        )
+        raise
     except Exception as exc:
         logger.error(
             "Failed to fetch rate from external provider on cache/DB miss",
             base=base_upper,
             target=target_upper,
             error=str(exc),
+            exc_info=True,
         )
 
     return None
@@ -294,12 +336,22 @@ async def convert_currency(
                             conv_data = await provider.convert(from_upper, to_upper, amount)
                             rate = float(conv_data["rate"])
                             result = float(conv_data["result"])
+                        except ExchangeRateProviderException:
+                            # Re-raise provider errors (402/502/503) as-is
+                            raise
                         except Exception as exc:
-                            logger.error("External provider conversion failed", error=str(exc))
+                            logger.error(
+                                "External provider conversion failed",
+                                from_currency=from_upper,
+                                to_currency=to_upper,
+                                error=str(exc),
+                                exc_info=True,
+                            )
                             raise NotFoundException(
                                 message=(
                                     f"Exchange rate for pair {from_upper}/{to_upper} "
-                                    "was not found."
+                                    "was not found. The external rate provider may be "
+                                    "unavailable or the API key may be invalid."
                                 )
                             )
 

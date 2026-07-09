@@ -26,7 +26,7 @@ class InvalidApiKeyException(ExchangeRateProviderException):
 
     def __init__(self, message: str = "Invalid API key provided to external service.") -> None:
         super().__init__(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_502_BAD_GATEWAY,
             code="INVALID_API_KEY",
             message=message,
         )

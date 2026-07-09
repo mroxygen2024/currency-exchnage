@@ -1,4 +1,7 @@
 import asyncio
+import os
+import subprocess  # noqa: S404
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -23,6 +26,65 @@ from app.modules.favorites.router import router as favorites_router
 from app.modules.health.router import router as health_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.users.router import router as users_router
+
+# Advisory lock key to prevent concurrent Alembic migrations
+_MIGRATION_LOCK_KEY = 7712345
+
+
+async def _run_alembic_migrations() -> None:
+    """Run Alembic migrations with an advisory lock to prevent concurrent execution.
+
+    This is a safety net for deployments where the Docker entrypoint might not
+    run (e.g., non-Docker deployments on Render). The PostgreSQL advisory lock
+    ensures only one worker runs migrations at a time.
+    """
+    from sqlalchemy import text
+
+    from app.core.database import AsyncSessionLocal
+
+    try:
+        async with AsyncSessionLocal() as session:
+            # Acquire advisory lock (session-level, auto-released on disconnect)
+            result = await session.execute(
+                text("SELECT pg_try_advisory_lock(:lock_key)"),
+                {"lock_key": _MIGRATION_LOCK_KEY},
+            )
+            lock_acquired = result.scalar()
+            if not lock_acquired:
+                logger.info("Another process holds the migration lock — skipping.")
+                return
+
+            try:
+                logger.info("Migration lock acquired. Running alembic upgrade head...")
+                proc = subprocess.run(  # noqa: S603
+                    [sys.executable, "-m", "alembic", "upgrade", "head"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                )
+                if proc.returncode != 0:
+                    logger.error(
+                        "Alembic upgrade head failed",
+                        returncode=proc.returncode,
+                        stdout=proc.stdout,
+                        stderr=proc.stderr,
+                    )
+                else:
+                    logger.info("Alembic migrations applied successfully.")
+                    if proc.stdout.strip():
+                        logger.info("Alembic output", output=proc.stdout.strip())
+            finally:
+                await session.execute(
+                    text("SELECT pg_advisory_unlock(:lock_key)"),
+                    {"lock_key": _MIGRATION_LOCK_KEY},
+                )
+    except Exception as exc:
+        logger.error(
+            "Failed to run migrations during startup",
+            error=str(exc),
+            exc_info=True,
+        )
 
 
 # ------------------------------------------------------------------------------
@@ -55,8 +117,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
                 "The application will start, but caching features "
                 "will be disabled/unhealthy with database fallbacks.",
                 redis_url=(
-                    settings.REDIS_URL
-                    or f"{settings.REDIS_HOST}:{settings.REDIS_PORT}"
+                    settings.REDIS_URL or f"{settings.REDIS_HOST}:{settings.REDIS_PORT}"
                 ),
             )
         else:
@@ -64,7 +125,11 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("Skipping Redis connection verification in testing mode.")
 
-    # 3. Verify database connectivity
+    # 3. Run database migrations (safety net for non-Docker deployments)
+    if settings.ENV != "testing":
+        await _run_alembic_migrations()
+
+    # 4. Verify database connectivity
     if settings.ENV != "testing":
         try:
             from sqlalchemy import text
@@ -81,7 +146,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
                 exc_info=True,
             )
 
-    # 4. Start periodic rates pusher background task
+    # 5. Start periodic rates pusher background task
     rates_task = asyncio.create_task(periodic_rates_pusher())
 
     yield
@@ -93,7 +158,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except asyncio.CancelledError:
         pass
 
-    # 5. Graceful Shutdown: disconnect cache and HTTP clients
+    # 6. Graceful Shutdown: disconnect cache and HTTP clients
     await redis_manager.close_pool()
     await http_client.close()
 
@@ -111,6 +176,25 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+
+# ------------------------------------------------------------------------------
+# Root Health Check (for Render / load balancer probes)
+# ------------------------------------------------------------------------------
+@app.get("/health", tags=["Health"])
+async def root_health_check() -> dict:
+    """Lightweight liveness probe at the root path.
+
+    Render's healthCheckPath may be configured as ``/health``. This endpoint
+    does NOT hit the database or Redis — it simply confirms the process is alive.
+    Use ``/api/v1/health`` for a full dependency-check.
+    """
+    from datetime import UTC, datetime
+
+    return {
+        "status": "ok",
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
 
 
 # ------------------------------------------------------------------------------

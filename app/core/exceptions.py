@@ -110,6 +110,8 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
         headers=exc.headers,
         content={
             "success": False,
+            "message": exc.message,
+            "errorCode": exc.code,
             "error": {
                 "code": exc.code,
                 "message": exc.message,
@@ -129,13 +131,16 @@ async def http_exception_handler(
         status_code=exc.status_code,
         message=exc.detail,
     )
+    code = f"HTTP_{exc.status_code}"
     return JSONResponse(
         status_code=exc.status_code,
         headers=exc.headers,
         content={
             "success": False,
+            "message": exc.detail,
+            "errorCode": code,
             "error": {
-                "code": f"HTTP_{exc.status_code}",
+                "code": code,
                 "message": exc.detail,
                 "details": None,
             },
@@ -167,6 +172,8 @@ async def validation_exception_handler(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "success": False,
+            "message": "Input validation failed.",
+            "errorCode": "VALIDATION_ERROR",
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "Input validation failed.",
@@ -190,6 +197,8 @@ async def sqlalchemy_exception_handler(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "success": False,
+            "message": "A database operation failed or connection was lost.",
+            "errorCode": "DATABASE_DISCONNECT_OR_ERROR",
             "error": {
                 "code": "DATABASE_DISCONNECT_OR_ERROR",
                 "message": "A database operation failed or connection was lost.",
@@ -211,6 +220,8 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "success": False,
+            "message": "An unexpected server error occurred.",
+            "errorCode": "INTERNAL_SERVER_ERROR",
             "error": {
                 "code": "INTERNAL_SERVER_ERROR",
                 "message": "An unexpected server error occurred.",

@@ -12,7 +12,7 @@ services:
     name: currency-exchange-api
     plan: free
     runtime: docker
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /health
     envVars:
       # General Configuration
       - key: ENV

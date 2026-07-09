@@ -216,7 +216,16 @@ async def periodic_rates_pusher() -> None:
 
 async def ws_rates_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time exchange rate streaming and subscriptions."""
-    await rates_ws_manager.connect(websocket)
+    try:
+        await rates_ws_manager.connect(websocket)
+    except Exception as exc:
+        logger.error(
+            "Failed to accept WebSocket connection",
+            error=str(exc),
+            exc_info=True,
+        )
+        return
+
     try:
         while True:
             # Receive message from client
@@ -277,6 +286,7 @@ async def ws_rates_endpoint(websocket: WebSocket) -> None:
                 except Exception as exc:
                     logger.error(
                         "Failed to push initial rates upon subscription",
+                        pairs=valid_pairs,
                         error=str(exc),
                     )
 
@@ -313,5 +323,9 @@ async def ws_rates_endpoint(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         rates_ws_manager.disconnect(websocket)
     except Exception as exc:
-        logger.error("Error in ws_rates_endpoint loop", error=str(exc), exc_info=True)
+        logger.error(
+            "Error in ws_rates_endpoint loop",
+            error=str(exc),
+            exc_info=True,
+        )
         rates_ws_manager.disconnect(websocket)
