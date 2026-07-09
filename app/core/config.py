@@ -80,6 +80,17 @@ class Settings(BaseSettings):
     CACHE_EXPIRE_SECONDS: int = 600
 
     # --------------------------------------------------------------------------
+    # Email / SMTP Configuration
+    # --------------------------------------------------------------------------
+    EMAILS_FROM_EMAIL: str = "noreply@currencytracker.com"
+    EMAILS_FROM_NAME: str = "Currency Tracker"
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = 1025
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_SECURE: bool = False
+
+    # --------------------------------------------------------------------------
     # Exchange Rate API Configuration (APILayer)
     # --------------------------------------------------------------------------
     EXCHANGE_RATE_API_URL: str = "https://api.exchangeratesapi.io/v1/"
