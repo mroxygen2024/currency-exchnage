@@ -25,7 +25,7 @@ def log_audit_event(
         request_id: Optional UUID tracing the request.
         resource: Optional name/ID of the resource being acted on.
         status: The outcome of the action ('success' or 'failure').
-        details: Optional dictionary of context parameters. Sensitive data MUST be excluded.
+        details: Optional context parameters. Sensitive data MUST be excluded.
     """
     event_payload = {
         "event_type": "security_audit",
