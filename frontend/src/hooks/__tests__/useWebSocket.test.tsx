@@ -85,21 +85,18 @@ function getLatestWs(): MockWebSocket {
 }
 
 describe('useWebSocket', () => {
-  let OriginalWebSocket: typeof WebSocket;
-
   beforeEach(() => {
     mockWsInstances = [];
-    OriginalWebSocket = globalThis.WebSocket;
-    globalThis.WebSocket = class extends MockWebSocket {
+    vi.stubGlobal('WebSocket', class extends MockWebSocket {
       constructor(url: string) {
         super(url);
         mockWsInstances.push(this);
       }
-    } as unknown as typeof WebSocket;
+    } as unknown as typeof WebSocket);
   });
 
   afterEach(() => {
-    globalThis.WebSocket = OriginalWebSocket;
+    vi.unstubAllGlobals();
   });
 
   it('initializes in disconnected state', () => {

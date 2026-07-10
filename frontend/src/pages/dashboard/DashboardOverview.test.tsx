@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { DashboardOverview } from './DashboardOverview';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '../../components/ui/Toast';
 import * as hooks from '../../hooks/useCurrency';
 
 vi.mock('../../auth/AuthContext', () => ({
@@ -155,7 +156,9 @@ describe('DashboardOverview', () => {
     render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <DashboardOverview />
+          <ToastProvider>
+            <DashboardOverview />
+          </ToastProvider>
         </BrowserRouter>
       </QueryClientProvider>
     );

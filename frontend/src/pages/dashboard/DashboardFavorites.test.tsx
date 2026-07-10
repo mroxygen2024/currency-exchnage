@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { DashboardFavorites } from './DashboardFavorites';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '../../components/ui/Toast';
 import type { FavoritePairOut } from '../../api/types';
 
 vi.mock('../../auth/AuthContext', () => ({
@@ -119,7 +120,9 @@ describe('DashboardFavorites', () => {
     render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <DashboardFavorites />
+          <ToastProvider>
+            <DashboardFavorites />
+          </ToastProvider>
         </BrowserRouter>
       </QueryClientProvider>
     );

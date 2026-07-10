@@ -265,7 +265,7 @@ describe('DashboardAnalytics', () => {
 
     renderComponent();
 
-    expect(screen.getByText('Failed to load trend statistics')).toBeInTheDocument();
+    expect(screen.getByText('Failed to load statistics')).toBeInTheDocument();
     const errorMessages = screen.getAllByText('Failed to fetch trends');
     expect(errorMessages.length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByRole('button', { name: /retry/i }).length).toBeGreaterThanOrEqual(1);

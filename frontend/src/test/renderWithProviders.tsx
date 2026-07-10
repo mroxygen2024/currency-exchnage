@@ -2,6 +2,7 @@ import { type ReactNode, useMemo } from 'react';
 import { render, type RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
+import { ToastProvider } from '../components/ui/Toast';
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -36,7 +37,9 @@ export function renderWithProviders(
     const client = useMemo(() => queryClient, []);
     return (
       <QueryClientProvider client={client}>
-        <BrowserRouter>{children}</BrowserRouter>
+        <BrowserRouter>
+          <ToastProvider>{children}</ToastProvider>
+        </BrowserRouter>
       </QueryClientProvider>
     );
   }

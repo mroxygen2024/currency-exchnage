@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { DashboardSettings } from './DashboardSettings';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '../../components/ui/Toast';
 
 const mockLogout = vi.fn();
 const mockNavigate = vi.fn();
@@ -65,7 +66,9 @@ describe('DashboardSettings', () => {
     render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <DashboardSettings />
+          <ToastProvider>
+            <DashboardSettings />
+          </ToastProvider>
         </BrowserRouter>
       </QueryClientProvider>
     );

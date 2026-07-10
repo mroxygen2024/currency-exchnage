@@ -1,9 +1,14 @@
 import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.modules.currency.websocket import (
+    RatesConnectionManager,
+    WebSocketManager,
+    fetch_rate_for_pair,
     rates_ws_manager,
     ws_manager,
 )
@@ -159,3 +164,87 @@ def test_ws_rates_invalid_messages() -> None:
             err4 = websocket.receive_json()
             assert err4["event"] == "error"
             assert "must be a string or a list" in err4["message"]
+
+
+def test_ws_rates_subscribe_string_pair() -> None:
+    """Test subscribing with a string pair instead of a list."""
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/rates") as ws:
+            ws.send_json({"action": "subscribe", "pairs": "USDEUR"})
+            data = ws.receive_json()
+            assert data["event"] == "subscribed"
+            assert "USDEUR" in data["pairs"]
+
+
+def test_ws_rates_subscribe_no_valid_pairs() -> None:
+    """Test subscribing with pairs that are not valid 6-char strings."""
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/rates") as ws:
+            ws.send_json({"action": "subscribe", "pairs": ["ab", "1234567"]})
+            data = ws.receive_json()
+            assert data["event"] == "error"
+            assert "No valid" in data["message"]
+
+
+def test_ws_rates_unsubscribe_string_pair() -> None:
+    """Test unsubscribing with a string pair instead of a list."""
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/rates") as ws:
+            ws.send_json({"action": "unsubscribe", "pairs": "USDEUR"})
+            data = ws.receive_json()
+            assert data["event"] == "unsubscribed"
+            assert "USDEUR" in data["pairs"]
+
+
+def test_ws_rates_unsubscribe_invalid_type() -> None:
+    """Test unsubscribing with an invalid pairs type."""
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/rates") as ws:
+            ws.send_json({"action": "unsubscribe", "pairs": 12345})
+            data = ws.receive_json()
+            assert data["event"] == "error"
+            assert "must be a string or a list" in data["message"]
+
+
+def test_fetch_rate_for_pair_short_pair() -> None:
+    """Test fetch_rate_for_pair returns None for non-6-char pair."""
+    result = asyncio.run(fetch_rate_for_pair(None, None, "USD"))
+    assert result is None
+
+
+@pytest.mark.anyio
+async def test_fetch_rate_for_pair_exception() -> None:
+    """Test fetch_rate_for_pair returns None when service raises."""
+    mock_db = AsyncMock()
+    mock_redis = AsyncMock()
+    with patch(
+        "app.modules.currency.websocket.services.get_rate",
+        side_effect=Exception("db error"),
+    ):
+        result = await fetch_rate_for_pair(mock_db, mock_redis, "USDEUR")
+        assert result is None
+
+
+def test_broadcast_to_subscribers_no_subscribers() -> None:
+    """Test broadcast_to_subscribers returns early with no subscribers."""
+    mgr = RatesConnectionManager()
+    asyncio.run(
+        mgr.broadcast_to_subscribers("USDEUR", {"event": "rate_update"})
+    )
+
+
+def test_ws_manager_broadcast_no_channel() -> None:
+    """Test ws_manager broadcast to non-existent channel returns early."""
+    mgr = WebSocketManager()
+    asyncio.run(mgr.broadcast_to_channel("NOPE", {"event": "update"}))
+
+
+def test_ws_manager_disconnect_empty_channel_cleanup() -> None:
+    """Test ws_manager disconnect removes empty channel."""
+    mgr = WebSocketManager()
+    mock_ws = MagicMock()
+    mock_ws.client = MagicMock()
+    mock_ws.client.host = "127.0.0.1"
+    mgr.active_connections["CH1"] = {mock_ws}
+    mgr.disconnect(mock_ws, "CH1")
+    assert "CH1" not in mgr.active_connections

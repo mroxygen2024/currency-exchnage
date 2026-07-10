@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { DashboardHistory } from './DashboardHistory';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '../../components/ui/Toast';
 import * as historyHooks from '../../hooks/useHistory';
 
 const mockHistoryItems = [
@@ -87,7 +88,9 @@ describe('DashboardHistory', () => {
     render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <DashboardHistory />
+          <ToastProvider>
+            <DashboardHistory />
+          </ToastProvider>
         </BrowserRouter>
       </QueryClientProvider>
     );
