@@ -82,7 +82,9 @@ class TestAsyncDatabaseUrl:
             DATABASE_URL="postgresql://user:pass@localhost:5432/db",
             SECRET_KEY="test",
         )
-        assert s.async_database_url == "postgresql+asyncpg://user:pass@localhost:5432/db"
+        assert (
+            s.async_database_url == "postgresql+asyncpg://user:pass@localhost:5432/db"
+        )
 
     def test_postgres_upgrade(self) -> None:
         from app.core.config import Settings
@@ -91,7 +93,9 @@ class TestAsyncDatabaseUrl:
             DATABASE_URL="postgres://user:pass@localhost:5432/db",
             SECRET_KEY="test",
         )
-        assert s.async_database_url == "postgresql+asyncpg://user:pass@localhost:5432/db"
+        assert (
+            s.async_database_url == "postgresql+asyncpg://user:pass@localhost:5432/db"
+        )
 
     def test_strips_sslmode(self) -> None:
         from app.core.config import Settings
@@ -145,7 +149,9 @@ class TestAsyncDatabaseUrl:
             DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/db",
             SECRET_KEY="test",
         )
-        assert s.async_database_url == "postgresql+asyncpg://user:pass@localhost:5432/db"
+        assert (
+            s.async_database_url == "postgresql+asyncpg://user:pass@localhost:5432/db"
+        )
 
 
 class TestDatabaseSslEnabled:
