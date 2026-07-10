@@ -183,8 +183,13 @@ async def test_sync_exchange_rate_task_db_none(
 @pytest.mark.anyio
 async def test_sync_exchange_rate_task_failure_path() -> None:
     """Verify sync_exchange_rate_task propagates internal exceptions."""
-    with pytest.raises(Exception):  # noqa: B017
-        await sync_exchange_rate_task("USD", "EUR", 0.92, db=None, redis=None)
+    with patch(
+        "app.modules.currency.tasks.services.update_or_create_rate",
+        new_callable=AsyncMock,
+        side_effect=Exception("DB Error"),
+    ):
+        with pytest.raises(Exception):  # noqa: B017
+            await sync_exchange_rate_task("USD", "EUR", 0.92, db=None, redis=None)
 
 
 @pytest.mark.anyio
@@ -264,7 +269,7 @@ async def test_auth_router_register_exception(client: AsyncClient) -> None:
     ):
         resp = await client.post(
             "/api/v1/auth/register",
-            json={"email": "fail_reg@example.com", "password": "pwd"},
+            json={"email": "fail_reg@example.com", "password": "password123"},
         )
         assert resp.status_code == 500
         assert resp.json()["error"]["code"] == "INTERNAL_SERVER_ERROR"
@@ -326,7 +331,7 @@ async def test_auth_router_sqlalchemy_exception_handler(
     ):
         resp = await client.post(
             "/api/v1/auth/register",
-            json={"email": "fail_db@example.com", "password": "pwd"},
+            json={"email": "fail_db@example.com", "password": "password123"},
         )
         assert resp.status_code == 500
         assert resp.json()["error"]["code"] == "DATABASE_DISCONNECT_OR_ERROR"
@@ -534,6 +539,7 @@ async def test_request_logging_middleware_forwarded_ip() -> None:
     async def mock_call_next(_req):  # noqa: ARG001
         resp = MagicMock(spec=Response)
         resp.headers = {}
+        resp.status_code = 200
         return resp
 
     resp = await mw.dispatch(mock_req, mock_call_next)

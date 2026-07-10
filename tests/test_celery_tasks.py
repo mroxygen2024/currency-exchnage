@@ -82,7 +82,15 @@ async def test_refresh_cache_task(
 
     # Verify rates cache key was warmed in Redis
     cache_key = "rate:USD:EUR"
-    mock_redis.setex.assert_any_call(cache_key, 600, "0.92")
+    mock_redis.setex.assert_called()
+    cache_calls = [
+        c for c in mock_redis.setex.call_args_list if c.args[0] == cache_key
+    ]
+    assert len(cache_calls) >= 1
+    import json as _json
+
+    payload = _json.loads(cache_calls[0].args[2])
+    assert payload["rate"] == 0.92
 
 
 @pytest.mark.anyio

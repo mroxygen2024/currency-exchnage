@@ -293,7 +293,8 @@ async def client(
 
     # ASGI Transport allows testing endpoints in-process without network overhead
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://testserver"
+        transport=ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://testserver",
     ) as ac:
         from app.core.redis import redis_manager
 
