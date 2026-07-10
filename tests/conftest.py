@@ -11,9 +11,9 @@ from app.core.config import settings
 
 settings.ENV = "testing"
 
-from app.core.database import Base, get_db
-from app.core.redis import get_redis
-from app.main import app
+from app.core.database import Base, get_db  # noqa: E402
+from app.core.redis import get_redis  # noqa: E402
+from app.main import app  # noqa: E402
 
 # In-memory SQLite connection string for rapid unit testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -52,8 +52,9 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
         autoflush=False,
     )
     async with session_factory() as session:
-        # Mock session.commit to perform session.flush instead, preventing permanent commits
-        # during tests and isolating all database changes to the current test case.
+        # Mock session.commit to perform session.flush instead,
+        # preventing permanent commits during tests and isolating
+        # all database changes to the current test case.
         original_commit = session.commit
 
         async def mock_commit():
@@ -73,21 +74,37 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture(autouse=True)
-def mock_exchange_rate_provider(monkeypatch) -> None:
-    """Mock the exchange rate provider factory for all tests to prevent real HTTP calls."""
+def mock_exchange_rate_provider(monkeypatch) -> None:  # noqa: E501
+    """Mock the exchange rate provider factory for all tests."""
     from app.modules.currency.providers.base import BaseExchangeRateProvider
 
-    class MockProvider(BaseExchangeRateProvider):
-        async def get_latest_rates(self, base: str, symbols: list[str] | None = None) -> dict[str, float]:
+    class MockProvider(BaseExchangeRateProvider):  # noqa: ARG001
+        async def get_latest_rates(  # noqa: ARG002
+            self, base: str, symbols: list[str] | None = None
+        ) -> dict[str, float]:
             return {}
 
-        async def get_historical_rates(self, date: str, base: str, symbols: list[str] | None = None) -> dict[str, float]:
+        async def get_historical_rates(  # noqa: ARG002
+            self, date: str, base: str, symbols: list[str] | None = None
+        ) -> dict[str, float]:
             return {}
 
-        async def convert(self, from_currency: str, to_currency: str, amount: float, date: str | None = None) -> dict:
+        async def convert(  # noqa: ARG002
+            self,
+            from_currency: str,
+            to_currency: str,
+            amount: float,
+            date: str | None = None,
+        ) -> dict:
             raise Exception("Mock conversion rate not found")
 
-        async def get_timeseries(self, start_date: str, end_date: str, base: str, symbols: list[str] | None = None) -> dict[str, dict[str, float]]:
+        async def get_timeseries(  # noqa: ARG002
+            self,
+            start_date: str,
+            end_date: str,
+            base: str,
+            symbols: list[str] | None = None,
+        ) -> dict[str, dict[str, float]]:
             return {}
 
         async def get_supported_currencies(self) -> dict[str, str]:
@@ -112,7 +129,7 @@ def mock_exchange_rate_provider(monkeypatch) -> None:
 
 @pytest.fixture(autouse=True)
 def mock_celery_delay(monkeypatch) -> None:
-    """Monkeypatch Celery task .delay methods to run tasks immediately and synchronously."""
+    """Monkeypatch Celery .delay methods to run synchronously."""
     from app.modules.notifications.tasks import (
         check_threshold_alerts_celery_task,
         check_threshold_alerts_task,
@@ -252,8 +269,9 @@ async def mock_redis() -> AsyncMock:
     redis.delete.side_effect = delete_val
     redis.expire.side_effect = expire_val
     from unittest.mock import MagicMock
+
     redis.pipeline = MagicMock()
-    redis.pipeline.side_effect = lambda *args, **kwargs: MockPipeline(cache_store)
+    redis.pipeline.side_effect = lambda **_kw: MockPipeline(cache_store)
     return redis
 
 
@@ -274,6 +292,7 @@ async def client(
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as ac:
         from app.core.redis import redis_manager
+
         original_client = redis_manager.client
         redis_manager.client = mock_redis
         try:

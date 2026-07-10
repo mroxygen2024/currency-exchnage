@@ -481,7 +481,7 @@ async def test_check_threshold_alerts_task_trigger(db_session: AsyncSession) -> 
 async def test_daily_summaries_scheduler_task(
     db_session: AsyncSession,
 ) -> None:
-    """Verify daily_summaries_scheduler_task generates daily summary emails for users with favorites."""
+    """Verify daily_summaries_scheduler_task generates summary emails."""
     from unittest.mock import AsyncMock
 
     # Create user

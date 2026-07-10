@@ -15,8 +15,8 @@ from app.tasks.celery_app import celery_app, run_async
     default_retry_delay=30,
     retry_backoff=True,
 )
-def clean_expired_tokens_task(self) -> int:
-    """Periodic Celery task to clean expired and revoked refresh tokens from database."""
+def clean_expired_tokens_task(self) -> int:  # noqa: ARG001
+    """Periodic Celery task to clean expired and revoked tokens."""
     logger.info("Executing clean_expired_tokens_task background worker.")
 
     async def _run() -> int:

@@ -98,6 +98,6 @@ class EmailService:
                 )
                 raise exc
 
-        # Execute blocking SMTP network request in a separate thread pool to prevent blocking event loop
+        # Execute blocking SMTP request in thread pool to avoid blocking event loop
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _blocking_send)

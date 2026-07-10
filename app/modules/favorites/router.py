@@ -14,7 +14,14 @@ from app.modules.favorites.service import FavoritesService
 router = APIRouter(
     prefix="/favorites",
     tags=["Favorites"],
-    dependencies=[Depends(RateLimiter(limit=settings.RATE_LIMIT_DEFAULT_LIMIT, window=settings.RATE_LIMIT_DEFAULT_WINDOW))],
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limit=settings.RATE_LIMIT_DEFAULT_LIMIT,
+                window=settings.RATE_LIMIT_DEFAULT_WINDOW,
+            )
+        )
+    ],
 )
 
 
@@ -81,7 +88,10 @@ async def delete_favorite(
             resource=f"favorite:{favorite_id}",
             status="success",
         )
-        return {"success": True, "message": "Favorite currency pair deleted successfully."}
+        return {
+            "success": True,
+            "message": "Favorite currency pair deleted successfully.",
+        }
     except Exception as exc:
         log_audit_event(
             action="favorite.delete",

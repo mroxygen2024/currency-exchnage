@@ -142,7 +142,7 @@ async def check_threshold_alerts_task(
                     NotificationSubscription.target_currency == target_upper,
                     NotificationSubscription.is_active,
                     User.is_active,
-                    User.is_deleted == False,
+                    ~User.is_deleted,
                 )
             )
             result = await session.execute(stmt)
@@ -162,7 +162,8 @@ async def check_threshold_alerts_task(
                     is_triggered = True
 
                 if is_triggered:
-                    # Check cooldown: last_triggered_at must be None or older than 24 hours
+                    # Check cooldown: last_triggered must be None
+                    # or older than 24 hours
                     last_triggered = sub.last_triggered_at
                     should_alert = False
                     if last_triggered is None:
@@ -229,7 +230,7 @@ async def daily_summaries_scheduler_task(
 
         async def _schedule(session: AsyncSession, r_client: Redis):
             # Fetch all active, non-deleted users
-            stmt_users = select(User).where(User.is_active, User.is_deleted == False)
+            stmt_users = select(User).where(User.is_active, ~User.is_deleted)
             users_result = await session.execute(stmt_users)
             users = users_result.scalars().all()
 
@@ -302,7 +303,7 @@ async def daily_summaries_scheduler_task(
     retry_backoff=True,
 )
 def send_alert_email_celery_task(
-    self,
+    self,  # noqa: ARG001
     recipient_email: str,
     base: str,
     target: str,
@@ -331,7 +332,7 @@ def send_alert_email_celery_task(
     retry_backoff=True,
 )
 def send_daily_summary_celery_task(
-    self,
+    self,  # noqa: ARG001
     recipient_email: str,
     pairs_data: list[dict],
 ) -> None:
@@ -352,7 +353,7 @@ def send_daily_summary_celery_task(
     retry_backoff=True,
 )
 def check_threshold_alerts_celery_task(
-    self,
+    self,  # noqa: ARG001
     base: str,
     target: str,
     current_rate: float,
@@ -374,6 +375,6 @@ def check_threshold_alerts_celery_task(
     default_retry_delay=10,
     retry_backoff=True,
 )
-def daily_summaries_scheduler_celery_task(self) -> None:
+def daily_summaries_scheduler_celery_task(self) -> None:  # noqa: ARG001
     """Celery Beat periodic task entrypoint for dispatching daily summaries."""
     run_async(daily_summaries_scheduler_task())

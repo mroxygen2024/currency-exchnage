@@ -1,63 +1,49 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import UTC, datetime, timedelta
-import smtplib
-import jwt
-from starlette.websockets import WebSocketState
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from fastapi import Request, Response, status
-from fastapi.exceptions import RequestValidationError
+import jwt
+import pytest
+from fastapi import Request, Response
+from httpx import AsyncClient
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from httpx import AsyncClient
 
 from app.core.config import settings
+from app.core.dependencies import get_current_user_id, get_optional_user_id
 from app.core.exceptions import (
-    AppException,
-    BadRequestException,
-    ForbiddenException,
-    NotFoundException,
-    UnauthorizedException,
     DatabaseException,
+    ForbiddenException,
+    UnauthorizedException,
 )
+from app.core.middleware import RequestLoggingAndIdMiddleware
+from app.core.rate_limit import RateLimiter, get_client_identifier
+from app.core.redis import get_redis, redis_manager
 from app.core.security import (
-    hash_password,
-    verify_password,
     create_access_token,
     decode_access_token,
+    verify_password,
 )
-from app.core.dependencies import get_current_user_id, get_optional_user_id
-from app.core.redis import redis_manager, get_redis
-from app.core.rate_limit import get_client_identifier, RateLimiter
-from app.core.middleware import RequestLoggingAndIdMiddleware
-from app.modules.auth.dependencies import get_current_active_user
 from app.modules.auth.models import User
-from app.modules.users.dependencies import require_role
+from app.modules.currency.models import CurrencyRate
+from app.modules.currency.tasks import (
+    refresh_cache_task,
+    sync_exchange_rate_celery_task,
+    sync_exchange_rate_task,
+    update_rates_task,
+)
 from app.modules.notifications.email_service import EmailService
 from app.modules.notifications.tasks import (
-    send_alert_email_task,
-    send_daily_summary_task,
-    check_threshold_alerts_task,
-    daily_summaries_scheduler_task,
-    send_alert_email_celery_task,
-    send_daily_summary_celery_task,
     check_threshold_alerts_celery_task,
     daily_summaries_scheduler_celery_task,
+    send_alert_email_celery_task,
+    send_daily_summary_celery_task,
 )
-from app.modules.currency.tasks import (
-    sync_exchange_rate_task,
-    sync_exchange_rate_celery_task,
-    update_rates_task,
-    refresh_cache_task,
-)
-from app.modules.currency.models import CurrencyRate, CurrencyConversion
-from app.modules.notifications.models import NotificationSubscription
-from app.modules.favorites.models import FavoritePair
-
+from app.modules.users.dependencies import require_role
 
 # ==============================================================================
 # 1. SMTP & EMAIL SERVICE TESTS (Mocking External network calls)
 # ==============================================================================
+
 
 @pytest.mark.anyio
 async def test_email_service_smtp_ssl_flow() -> None:
@@ -71,7 +57,7 @@ async def test_email_service_smtp_ssl_flow() -> None:
         patch.object(settings, "SMTP_PORT", 465),
         patch.object(settings, "SMTP_USER", "testuser"),
         patch.object(settings, "SMTP_PASSWORD", "testpass"),
-        patch("smtplib.SMTP_SSL") as mock_smtp_ssl
+        patch("smtplib.SMTP_SSL") as mock_smtp_ssl,
     ):
         mock_server = MagicMock()
         mock_smtp_ssl.return_value = mock_server
@@ -79,7 +65,7 @@ async def test_email_service_smtp_ssl_flow() -> None:
         await EmailService.send_email(
             to_email="recipient@example.com",
             subject="Test Subject",
-            html_content="<p>Test HTML</p>"
+            html_content="<p>Test HTML</p>",
         )
 
         mock_smtp_ssl.assert_called_once_with("mail.example.com", 465, timeout=10)
@@ -98,7 +84,7 @@ async def test_email_service_smtp_tls_flow() -> None:
         patch.object(settings, "SMTP_PORT", 587),
         patch.object(settings, "SMTP_USER", None),
         patch.object(settings, "SMTP_PASSWORD", None),
-        patch("smtplib.SMTP") as mock_smtp
+        patch("smtplib.SMTP") as mock_smtp,
     ):
         mock_server = MagicMock()
         mock_smtp.return_value = mock_server
@@ -106,7 +92,7 @@ async def test_email_service_smtp_tls_flow() -> None:
         await EmailService.send_email(
             to_email="recipient@example.com",
             subject="Test Subject",
-            html_content="<p>Test HTML</p>"
+            html_content="<p>Test HTML</p>",
         )
 
         mock_smtp.assert_called_once_with("mail.example.com", 587, timeout=10)
@@ -122,7 +108,7 @@ async def test_email_service_smtp_tls_starttls_error() -> None:
     with (
         patch.object(settings, "ENV", "development"),
         patch.object(settings, "SMTP_SECURE", False),
-        patch("smtplib.SMTP") as mock_smtp
+        patch("smtplib.SMTP") as mock_smtp,
     ):
         mock_server = MagicMock()
         mock_server.starttls.side_effect = Exception("Starttls failed")
@@ -131,7 +117,7 @@ async def test_email_service_smtp_tls_starttls_error() -> None:
         await EmailService.send_email(
             to_email="recipient@example.com",
             subject="Test Subject",
-            html_content="<p>Test HTML</p>"
+            html_content="<p>Test HTML</p>",
         )
 
         mock_server.starttls.assert_called_once()
@@ -143,14 +129,14 @@ async def test_email_service_smtp_error_propagation() -> None:
     """Verify that SMTP failures propagate correctly."""
     with (
         patch.object(settings, "ENV", "development"),
-        patch("smtplib.SMTP") as mock_smtp
+        patch("smtplib.SMTP") as mock_smtp,
     ):
         mock_smtp.side_effect = Exception("Connection refused")
         with pytest.raises(Exception) as exc:
             await EmailService.send_email(
                 to_email="recipient@example.com",
                 subject="Test Subject",
-                html_content="<p>Test HTML</p>"
+                html_content="<p>Test HTML</p>",
             )
         assert "Connection refused" in str(exc.value)
 
@@ -159,8 +145,11 @@ async def test_email_service_smtp_error_propagation() -> None:
 # 2. CELERY TASKS & WRAPPER EXECUTION
 # ==============================================================================
 
+
 @pytest.mark.anyio
-async def test_sync_exchange_rate_task_db_none(db_session: AsyncSession, mock_redis: AsyncMock) -> None:
+async def test_sync_exchange_rate_task_db_none(
+    db_session: AsyncSession, mock_redis: AsyncMock
+) -> None:
     """Verify sync_exchange_rate_task runs successfully with db=None and redis=None."""
     # Seed db with test rate so it updates it
     rate = CurrencyRate(base_currency="USD", target_currency="ZAR", rate=18.5)
@@ -168,20 +157,22 @@ async def test_sync_exchange_rate_task_db_none(db_session: AsyncSession, mock_re
     await db_session.commit()
 
     import app.core.database
+
     app.core.database.CURRENT_TEST_DB = db_session
 
     with (
         patch("app.core.redis.redis_manager.client", new=mock_redis),
-        patch("app.modules.currency.tasks.get_db_context") as mock_db_ctx
+        patch("app.modules.currency.tasks.get_db_context") as mock_db_ctx,
     ):
         # Set up context manager mock to yield the test db session
         @patch("app.modules.currency.tasks.get_db_context")
         class MockDBContext:
             async def __aenter__(self):
                 return db_session
+
             async def __aexit__(self, exc_type, exc_val, exc_tb):
                 pass
-        
+
         mock_db_ctx.return_value = MockDBContext()
 
         await sync_exchange_rate_task("USD", "ZAR", 18.9, db=None, redis=None)
@@ -193,18 +184,33 @@ async def test_sync_exchange_rate_task_db_none(db_session: AsyncSession, mock_re
 async def test_sync_exchange_rate_task_failure_path() -> None:
     """Verify sync_exchange_rate_task propagates internal exceptions."""
     with pytest.raises(Exception):
-        await sync_exchange_rate_task("USD", "EUR", 0.92, db=None, redis=None)
+        await sync_exchange_rate_task("USD", "EUR", 0.92, db=None, redis=None)  # noqa: B017
 
 
 @pytest.mark.anyio
 async def test_celery_task_wrappers_execution() -> None:
     """Verify all Celery task wrappers can be called without errors."""
     with (
-        patch("app.modules.currency.tasks.sync_exchange_rate_task", new_callable=AsyncMock) as mock_sync,
-        patch("app.modules.notifications.tasks.check_threshold_alerts_task", new_callable=AsyncMock) as mock_check,
-        patch("app.modules.notifications.tasks.send_alert_email_task", new_callable=AsyncMock) as mock_send_email,
-        patch("app.modules.notifications.tasks.send_daily_summary_task", new_callable=AsyncMock) as mock_send_daily,
-        patch("app.modules.notifications.tasks.daily_summaries_scheduler_task", new_callable=AsyncMock) as mock_sched
+        patch(
+            "app.modules.currency.tasks.sync_exchange_rate_task",
+            new_callable=AsyncMock,
+        ) as mock_sync,
+        patch(
+            "app.modules.notifications.tasks.check_threshold_alerts_task",
+            new_callable=AsyncMock,
+        ) as mock_check,
+        patch(
+            "app.modules.notifications.tasks.send_alert_email_task",
+            new_callable=AsyncMock,
+        ) as mock_send_email,
+        patch(
+            "app.modules.notifications.tasks.send_daily_summary_task",
+            new_callable=AsyncMock,
+        ) as mock_send_daily,
+        patch(
+            "app.modules.notifications.tasks.daily_summaries_scheduler_task",
+            new_callable=AsyncMock,
+        ) as mock_sched,
     ):
         sync_exchange_rate_celery_task("USD", "EUR", 0.92)
         mock_sync.assert_called_once()
@@ -226,29 +232,39 @@ async def test_celery_task_wrappers_execution() -> None:
 async def test_periodic_tasks_failure_paths() -> None:
     """Verify Celery periodic tasks propagate exceptions when they fail internally."""
     with (
-        patch("app.modules.currency.tasks.services.list_rates", side_effect=Exception("DB Error")),
-        pytest.raises(Exception)
+        patch(
+            "app.modules.currency.tasks.services.list_rates",
+            side_effect=Exception("DB Error"),
+        ),
+        pytest.raises(Exception),
     ):
-        update_rates_task()
+        update_rates_task()  # noqa: B017
 
     with (
-        patch("app.modules.currency.tasks.services.list_rates", side_effect=Exception("DB Error")),
-        pytest.raises(Exception)
+        patch(
+            "app.modules.currency.tasks.services.list_rates",
+            side_effect=Exception("DB Error"),
+        ),
+        pytest.raises(Exception),
     ):
-        refresh_cache_task()
+        refresh_cache_task()  # noqa: B017
 
 
 # ==============================================================================
 # 3. ROUTER EXCEPTION HANDLING & AUDIT LOGS
 # ==============================================================================
 
+
 @pytest.mark.anyio
 async def test_auth_router_register_exception(client: AsyncClient) -> None:
     """Verify exceptions in auth router /register route are handled and log audits."""
-    with patch("app.modules.auth.service.AuthService.register_user", side_effect=Exception("Register fail")):
+    with patch(
+        "app.modules.auth.service.AuthService.register_user",
+        side_effect=Exception("Register fail"),
+    ):
         resp = await client.post(
             "/api/v1/auth/register",
-            json={"email": "fail_reg@example.com", "password": "pwd"}
+            json={"email": "fail_reg@example.com", "password": "pwd"},
         )
         assert resp.status_code == 500
         assert resp.json()["error"]["code"] == "INTERNAL_SERVER_ERROR"
@@ -256,11 +272,14 @@ async def test_auth_router_register_exception(client: AsyncClient) -> None:
 
 @pytest.mark.anyio
 async def test_auth_router_login_exception(client: AsyncClient) -> None:
-    """Verify exceptions in auth router /login route are handled and log audits."""
-    with patch("app.modules.auth.service.AuthService.authenticate_user", side_effect=Exception("Login fail")):
+    """Verify exceptions in auth router /login route are handled."""
+    with patch(
+        "app.modules.auth.service.AuthService.authenticate_user",
+        side_effect=Exception("Login fail"),
+    ):
         resp = await client.post(
             "/api/v1/auth/login",
-            data={"username": "fail_log@example.com", "password": "pwd"}
+            data={"username": "fail_log@example.com", "password": "pwd"},
         )
         assert resp.status_code == 500
         assert resp.json()["error"]["code"] == "INTERNAL_SERVER_ERROR"
@@ -268,11 +287,14 @@ async def test_auth_router_login_exception(client: AsyncClient) -> None:
 
 @pytest.mark.anyio
 async def test_auth_router_refresh_exception(client: AsyncClient) -> None:
-    """Verify exceptions in auth router /refresh route are handled and log audits."""
-    with patch("app.modules.auth.service.AuthService.rotate_refresh_token", side_effect=Exception("Refresh fail")):
+    """Verify exceptions in auth router /refresh route are handled."""
+    with patch(
+        "app.modules.auth.service.AuthService.rotate_refresh_token",
+        side_effect=Exception("Refresh fail"),
+    ):
         resp = await client.post(
             "/api/v1/auth/refresh",
-            json={"refresh_token": "some_token"}
+            json={"refresh_token": "some_token"},
         )
         assert resp.status_code == 500
         assert resp.json()["error"]["code"] == "INTERNAL_SERVER_ERROR"
@@ -280,23 +302,31 @@ async def test_auth_router_refresh_exception(client: AsyncClient) -> None:
 
 @pytest.mark.anyio
 async def test_auth_router_logout_exception(client: AsyncClient) -> None:
-    """Verify exceptions in auth router /logout route are handled and log audits."""
-    with patch("app.modules.auth.service.AuthService.revoke_refresh_token", side_effect=Exception("Logout fail")):
+    """Verify exceptions in auth router /logout route are handled."""
+    with patch(
+        "app.modules.auth.service.AuthService.revoke_refresh_token",
+        side_effect=Exception("Logout fail"),
+    ):
         resp = await client.post(
             "/api/v1/auth/logout",
-            json={"refresh_token": "some_token"}
+            json={"refresh_token": "some_token"},
         )
         assert resp.status_code == 500
         assert resp.json()["error"]["code"] == "INTERNAL_SERVER_ERROR"
 
 
 @pytest.mark.anyio
-async def test_auth_router_sqlalchemy_exception_handler(client: AsyncClient) -> None:
-    """Verify SQLAlchemyExceptions are formatted correctly by the handler."""
-    with patch("app.modules.auth.service.AuthService.register_user", side_effect=SQLAlchemyError("DB Disconnected")):
+async def test_auth_router_sqlalchemy_exception_handler(
+    client: AsyncClient,
+) -> None:
+    """Verify SQLAlchemyExceptions are formatted correctly by handler."""
+    with patch(
+        "app.modules.auth.service.AuthService.register_user",
+        side_effect=SQLAlchemyError("DB Disconnected"),
+    ):
         resp = await client.post(
             "/api/v1/auth/register",
-            json={"email": "fail_db@example.com", "password": "pwd"}
+            json={"email": "fail_db@example.com", "password": "pwd"},
         )
         assert resp.status_code == 500
         assert resp.json()["error"]["code"] == "DATABASE_DISCONNECT_OR_ERROR"
@@ -305,6 +335,7 @@ async def test_auth_router_sqlalchemy_exception_handler(client: AsyncClient) -> 
 # ==============================================================================
 # 4. SECURITY & EXCEPTION HANDLING TESTS
 # ==============================================================================
+
 
 def test_verify_password_invalid_hash() -> None:
     """Verify verify_password returns False for invalid hash format."""
@@ -330,7 +361,9 @@ def test_create_access_token_default_expiry() -> None:
 
 def test_decode_access_token_expired() -> None:
     """Verify decode_access_token raises UnauthorizedException for expired token."""
-    expired_token = create_access_token("test_user_id", expires_delta=timedelta(minutes=-5))
+    expired_token = create_access_token(
+        "test_user_id", expires_delta=timedelta(minutes=-5)
+    )
     with pytest.raises(UnauthorizedException) as exc:
         decode_access_token(expired_token)
     assert exc.value.code == "UNAUTHORIZED"
@@ -393,6 +426,7 @@ async def test_require_role_rbac() -> None:
 # 5. REDIS MANAGER & RATE LIMITER TESTS
 # ==============================================================================
 
+
 @pytest.mark.anyio
 async def test_redis_manager_ping_and_get_redis() -> None:
     """Verify redis_manager ping error paths and get_redis RuntimeError."""
@@ -426,7 +460,9 @@ async def test_get_client_identifier_token_cases() -> None:
     mock_req_invalid.headers = {"authorization": "Bearer invalid_token"}
     mock_req_invalid.client = MagicMock()
     mock_req_invalid.client.host = "127.0.0.1"
-    with patch("app.core.security.decode_access_token", side_effect=Exception("Invalid")):
+    with patch(
+        "app.core.security.decode_access_token", side_effect=Exception("Invalid")
+    ):
         res = await get_client_identifier(mock_req_invalid)
         assert res == "ip:127.0.0.1"
 
@@ -454,12 +490,14 @@ async def test_rate_limiter_fail_open_scenarios() -> None:
     mock_client = MagicMock()
     mock_client.pipeline.side_effect = Exception("Redis error")
     with patch.object(redis_manager, "client", mock_client):
-        await limiter(mock_req, mock_resp)  # Should fail open and return without exception
+        # Should fail open and return without exception
+        await limiter(mock_req, mock_resp)
 
 
 # ==============================================================================
 # 6. MIDDLEWARE TESTS
 # ==============================================================================
+
 
 @pytest.mark.anyio
 async def test_request_logging_middleware_exception_path() -> None:
@@ -473,7 +511,7 @@ async def test_request_logging_middleware_exception_path() -> None:
     mock_req.url.path = "/api"
     mock_req.query_params = {}
 
-    async def mock_call_next(req):
+    async def mock_call_next(_req):  # noqa: ARG001
         raise ValueError("Something went wrong inside the app")
 
     with pytest.raises(ValueError) as exc:
@@ -483,7 +521,7 @@ async def test_request_logging_middleware_exception_path() -> None:
 
 @pytest.mark.anyio
 async def test_request_logging_middleware_forwarded_ip() -> None:
-    """Verify RequestLoggingAndIdMiddleware extracts IP from x-forwarded-for header."""
+    """Verify middleware extracts IP from x-forwarded-for header."""
     mw = RequestLoggingAndIdMiddleware(app=MagicMock())
     mock_req = MagicMock(spec=Request)
     mock_req.headers = {"x-forwarded-for": "172.16.0.1"}
@@ -493,7 +531,7 @@ async def test_request_logging_middleware_forwarded_ip() -> None:
     mock_req.url.path = "/api"
     mock_req.query_params = {}
 
-    async def mock_call_next(req):
+    async def mock_call_next(_req):  # noqa: ARG001
         resp = MagicMock(spec=Response)
         resp.headers = {}
         return resp
@@ -505,6 +543,7 @@ async def test_request_logging_middleware_forwarded_ip() -> None:
 # ==============================================================================
 # 7. ROUTER EDGE CASES & COVERAGE BOOSTERS
 # ==============================================================================
+
 
 @pytest.mark.anyio
 async def test_currency_router_rates_invalid_length(client: AsyncClient) -> None:
@@ -529,7 +568,9 @@ async def test_currency_router_rates_not_found(client: AsyncClient) -> None:
 
 
 @pytest.mark.anyio
-async def test_currency_router_list_all_rates(client: AsyncClient, db_session: AsyncSession) -> None:
+async def test_currency_router_list_all_rates(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
     """Verify list_all_rates endpoint returns rates from DB."""
     # Seed DB with a rate
     rate = CurrencyRate(base_currency="USD", target_currency="NZD", rate=1.65)
@@ -554,6 +595,7 @@ async def test_users_router_me_unauthenticated(client: AsyncClient) -> None:
 # ==============================================================================
 # 8. EXCEPTIONS & ERROR HANDLERS (DatabaseException & HTTP Handlers)
 # ==============================================================================
+
 
 def test_database_exception_instantiation() -> None:
     """Verify DatabaseException sets properties correctly."""

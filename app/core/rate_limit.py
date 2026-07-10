@@ -15,6 +15,7 @@ async def get_client_identifier(request: Request) -> str:
         try:
             # Import dynamically to avoid circular dependencies
             from app.core.security import decode_access_token
+
             payload = decode_access_token(token)
             user_id = payload.get("sub")
             if user_id:

@@ -1,5 +1,7 @@
 from typing import Any
+
 from fastapi import status
+
 from app.core.exceptions import AppException
 
 
@@ -24,7 +26,10 @@ class ExchangeRateProviderException(AppException):
 class InvalidApiKeyException(ExchangeRateProviderException):
     """Raised when the exchange rate API key is invalid."""
 
-    def __init__(self, message: str = "Invalid API key provided to external service.") -> None:
+    def __init__(
+        self,
+        message: str = "Invalid API key provided to external service.",
+    ) -> None:
         super().__init__(
             status_code=status.HTTP_502_BAD_GATEWAY,
             code="INVALID_API_KEY",
@@ -35,7 +40,12 @@ class InvalidApiKeyException(ExchangeRateProviderException):
 class ProviderDowntimeException(ExchangeRateProviderException):
     """Raised when the exchange rate provider is down or unreachable."""
 
-    def __init__(self, message: str = "Exchange rate provider is currently down or unreachable.") -> None:
+    def __init__(
+        self,
+        message: str = (
+            "Exchange rate provider is currently down or unreachable."
+        ),
+    ) -> None:
         super().__init__(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             code="PROVIDER_DOWNTIME",
@@ -46,7 +56,9 @@ class ProviderDowntimeException(ExchangeRateProviderException):
 class RateLimitExceededException(ExchangeRateProviderException):
     """Raised when the exchange rate API rate limit is exceeded."""
 
-    def __init__(self, message: str = "Exchange rate API rate limit exceeded.") -> None:
+    def __init__(
+        self, message: str = "Exchange rate API rate limit exceeded."
+    ) -> None:
         super().__init__(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             code="RATE_LIMIT_EXCEEDED",
@@ -57,7 +69,12 @@ class RateLimitExceededException(ExchangeRateProviderException):
 class InvalidCurrencyException(ExchangeRateProviderException):
     """Raised when a requested currency is invalid or unsupported."""
 
-    def __init__(self, message: str = "One or more requested currencies are invalid or unsupported.") -> None:
+    def __init__(
+        self,
+        message: str = (
+            "One or more requested currencies are invalid or unsupported."
+        ),
+    ) -> None:
         super().__init__(
             status_code=status.HTTP_400_BAD_REQUEST,
             code="INVALID_CURRENCY",

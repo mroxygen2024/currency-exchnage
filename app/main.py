@@ -165,7 +165,7 @@ async def _seed_historical_rates() -> None:
                     )
 
                 if not backfilled:
-                    # Generate synthetic historical data (30 days of slight fluctuations)
+                    # Generate synthetic historical data (30 days)
                     for days_ago in range(30, 0, -1):
                         ts = now - timedelta(days=days_ago)
                         # Random fluctuation +/- 2%
@@ -235,7 +235,9 @@ async def _refresh_rates_on_startup() -> None:
 
             for base_curr, target_currs in base_groups.items():
                 try:
-                    from app.modules.currency.providers import get_exchange_rate_provider
+                    from app.modules.currency.providers import (
+                        get_exchange_rate_provider,
+                    )
 
                     provider = get_exchange_rate_provider()
                     latest_rates = await provider.get_latest_rates(

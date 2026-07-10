@@ -26,7 +26,7 @@ class NotificationsService:
         threshold = subscription_in.threshold
         condition = subscription_in.condition.lower()
 
-        # Prevent duplicate subscriptions for the same user, pair, threshold and condition
+        # Prevent duplicate subscriptions for the same user/pair/condition
         existing = await self.notifications_repo.get_by_unique_constraint(
             user_id=user.id,
             base=base,
@@ -37,8 +37,8 @@ class NotificationsService:
         if existing:
             raise BadRequestException(
                 message=(
-                    f"You are already subscribed to a threshold alert for {base}/{target} "
-                    f"{condition} {threshold}."
+                    f"You are already subscribed to a threshold alert "
+                    f"for {base}/{target} {condition} {threshold}."
                 ),
                 details={"error_code": "DUPLICATE_NOTIFICATION_SUBSCRIPTION"},
             )
@@ -60,13 +60,18 @@ class NotificationsService:
         subscription = await self.notifications_repo.get_by_id(subscription_id)
         if not subscription:
             raise NotFoundException(
-                message=f"Notification subscription with ID {subscription_id} not found."
+                message=(
+                    f"Notification subscription with ID {subscription_id} not found."
+                )
             )
 
         # Authorization check: only owner or admin can delete
         if user.role != "admin" and subscription.user_id != user.id:
             raise ForbiddenException(
-                message="You do not have permission to delete this notification subscription."
+                message=(
+                    "You do not have permission to delete "
+                    "this notification subscription."
+                )
             )
 
         await self.notifications_repo.delete(subscription)

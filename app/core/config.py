@@ -128,9 +128,9 @@ class Settings(BaseSettings):
             url = self.DATABASE_URL
             # Upgrade standard postgresql:// to async:// driver
             if url.startswith("postgresql://"):
-                url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+                url = "postgresql+asyncpg://" + url[len("postgresql://") :]
             elif url.startswith("postgres://"):
-                url = "postgresql+asyncpg://" + url[len("postgres://"):]
+                url = "postgresql+asyncpg://" + url[len("postgres://") :]
             # Strip sslmode – asyncpg does not understand it as a URL param
             parsed = urlparse(url)
             params = parse_qs(parsed.query, keep_blank_values=True)

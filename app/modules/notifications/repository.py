@@ -5,7 +5,7 @@ from app.modules.notifications.models import NotificationSubscription
 
 
 class NotificationsRepository:
-    """Repository class for handling database operations for Notification Subscriptions."""
+    """Repository class for handling database operations for Notifications."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -21,7 +21,7 @@ class NotificationsRepository:
     async def get_by_unique_constraint(
         self, user_id: int, base: str, target: str, threshold: float, condition: str
     ) -> NotificationSubscription | None:
-        """Fetch a subscription by unique constraint parameters to check for duplicates."""
+        """Fetch a subscription by unique constraint to check for duplicates."""
         stmt = select(NotificationSubscription).where(
             NotificationSubscription.user_id == user_id,
             NotificationSubscription.base_currency == base.upper(),

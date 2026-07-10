@@ -20,7 +20,14 @@ from app.modules.auth.service import AuthService
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
-    dependencies=[Depends(RateLimiter(limit=settings.RATE_LIMIT_AUTH_LIMIT, window=settings.RATE_LIMIT_AUTH_WINDOW))],
+    dependencies=[
+        Depends(
+            RateLimiter(
+                limit=settings.RATE_LIMIT_AUTH_LIMIT,
+                window=settings.RATE_LIMIT_AUTH_WINDOW,
+            )
+        )
+    ],
 )
 
 
@@ -168,7 +175,10 @@ async def logout(
             request_id=request_id,
             status="success",
         )
-        return {"success": True, "message": "Successfully logged out and session revoked."}
+        return {
+            "success": True,
+            "message": "Successfully logged out and session revoked.",
+        }
     except Exception as exc:
         log_audit_event(
             action="user.logout",
