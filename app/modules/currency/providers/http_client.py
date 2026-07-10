@@ -28,9 +28,7 @@ class ExchangeRateHTTPClient:
     def get_client(self) -> httpx.AsyncClient:
         """Retrieve or initialize the httpx.AsyncClient."""
         if self.client is None or self.client.is_closed:
-            timeout = httpx.Timeout(
-                float(settings.EXCHANGE_RATE_API_TIMEOUT)
-            )
+            timeout = httpx.Timeout(float(settings.EXCHANGE_RATE_API_TIMEOUT))
             limits = httpx.Limits(
                 max_connections=50,
                 max_keepalive_connections=10,
@@ -39,9 +37,7 @@ class ExchangeRateHTTPClient:
                 timeout=timeout,
                 limits=limits,
             )
-            logger.info(
-                "Initialized reusable ExchangeRateHTTPClient."
-            )
+            logger.info("Initialized reusable ExchangeRateHTTPClient.")
         return self.client
 
     async def close(self) -> None:
@@ -84,15 +80,9 @@ class ExchangeRateHTTPClient:
                     data = response.json()
                     # ExchangeRatesAPI returns success: false
                     # instead of HTTP status codes sometimes
-                    if (
-                        isinstance(data, dict)
-                        and not data.get("success", True)
-                    ):
+                    if isinstance(data, dict) and not data.get("success", True):
                         error_info = data.get("error", {})
-                        error_code = (
-                            error_info.get("code")
-                            or error_info.get("type")
-                        )
+                        error_code = error_info.get("code") or error_info.get("type")
                         error_msg = (
                             error_info.get("info")
                             or error_info.get("message")
@@ -117,16 +107,12 @@ class ExchangeRateHTTPClient:
                             "invalid_base_currency",
                             "invalid_currency_codes",
                         ):
-                            raise InvalidCurrencyException(
-                                error_msg
-                            )
+                            raise InvalidCurrencyException(error_msg)
                         elif error_code in (
                             104,
                             "requests_amount_reached",
                         ):
-                            raise RateLimitExceededException(
-                                error_msg
-                            )
+                            raise RateLimitExceededException(error_msg)
                         else:
                             raise ExchangeRateProviderException(
                                 status_code=400,
@@ -136,17 +122,12 @@ class ExchangeRateHTTPClient:
                     return data
 
                 if response.status_code == 401:
-                    raise InvalidApiKeyException(
-                        "API key is unauthorized or invalid."
-                    )
+                    raise InvalidApiKeyException("API key is unauthorized or invalid.")
                 elif response.status_code == 429:
-                    raise RateLimitExceededException(
-                        "Rate limit exceeded."
-                    )
+                    raise RateLimitExceededException("Rate limit exceeded.")
                 elif response.status_code in (400, 404):
                     raise InvalidCurrencyException(
-                        f"Invalid currency, URL or parameters: "
-                        f"{response.text}"
+                        f"Invalid currency, URL or parameters: {response.text}"
                     )
                 elif response.status_code >= 500:
                     response.raise_for_status()
@@ -187,10 +168,7 @@ class ExchangeRateHTTPClient:
                 raise ExchangeRateProviderException(
                     status_code=500,
                     code="UNEXPECTED_PROVIDER_ERROR",
-                    message=(
-                        f"An unexpected error occurred: "
-                        f"{str(exc)}"
-                    ),
+                    message=(f"An unexpected error occurred: {str(exc)}"),
                 ) from exc
 
         logger.error(

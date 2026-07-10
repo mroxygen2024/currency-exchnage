@@ -120,9 +120,7 @@ async def get_rate(
     )
     try:
         provider = get_exchange_rate_provider()
-        rates = await provider.get_latest_rates(
-            base=base_upper, symbols=[target_upper]
-        )
+        rates = await provider.get_latest_rates(base=base_upper, symbols=[target_upper])
         if target_upper in rates:
             rate_val = rates[target_upper]
             # Save new rate to DB and cache via update_or_create_rate
@@ -367,9 +365,7 @@ async def convert_currency(
                                 rate = r2 / r1
                                 break
                         # Also try from -> base, base -> to
-                        rate_from_to_base = await get_rate(
-                            db, redis, from_upper, base
-                        )
+                        rate_from_to_base = await get_rate(db, redis, from_upper, base)
                         if rate_from_to_base and rate_base_to_to:
                             r1 = float(rate_from_to_base.rate)
                             r2 = float(rate_base_to_to.rate)

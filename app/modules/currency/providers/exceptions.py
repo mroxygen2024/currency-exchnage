@@ -42,9 +42,7 @@ class ProviderDowntimeException(ExchangeRateProviderException):
 
     def __init__(
         self,
-        message: str = (
-            "Exchange rate provider is currently down or unreachable."
-        ),
+        message: str = ("Exchange rate provider is currently down or unreachable."),
     ) -> None:
         super().__init__(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -56,9 +54,7 @@ class ProviderDowntimeException(ExchangeRateProviderException):
 class RateLimitExceededException(ExchangeRateProviderException):
     """Raised when the exchange rate API rate limit is exceeded."""
 
-    def __init__(
-        self, message: str = "Exchange rate API rate limit exceeded."
-    ) -> None:
+    def __init__(self, message: str = "Exchange rate API rate limit exceeded.") -> None:
         super().__init__(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             code="RATE_LIMIT_EXCEEDED",
@@ -71,9 +67,7 @@ class InvalidCurrencyException(ExchangeRateProviderException):
 
     def __init__(
         self,
-        message: str = (
-            "One or more requested currencies are invalid or unsupported."
-        ),
+        message: str = ("One or more requested currencies are invalid or unsupported."),
     ) -> None:
         super().__init__(
             status_code=status.HTTP_400_BAD_REQUEST,

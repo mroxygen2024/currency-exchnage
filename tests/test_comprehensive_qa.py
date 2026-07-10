@@ -184,9 +184,7 @@ async def test_sync_exchange_rate_task_db_none(
 async def test_sync_exchange_rate_task_failure_path() -> None:
     """Verify sync_exchange_rate_task propagates internal exceptions."""
     with pytest.raises(Exception):  # noqa: B017
-        await sync_exchange_rate_task(
-            "USD", "EUR", 0.92, db=None, redis=None
-        )
+        await sync_exchange_rate_task("USD", "EUR", 0.92, db=None, redis=None)
 
 
 @pytest.mark.anyio
@@ -242,7 +240,6 @@ async def test_periodic_tasks_failure_paths() -> None:
     ):
         update_rates_task()
 
-
     with (
         patch(
             "app.modules.currency.tasks.services.list_rates",
@@ -251,6 +248,7 @@ async def test_periodic_tasks_failure_paths() -> None:
         pytest.raises(Exception),  # noqa: B017
     ):
         refresh_cache_task()
+
 
 # ==============================================================================
 # 3. ROUTER EXCEPTION HANDLING & AUDIT LOGS

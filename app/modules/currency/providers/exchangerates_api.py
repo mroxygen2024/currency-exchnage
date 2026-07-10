@@ -21,9 +21,7 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
     def _get_auth_params(self) -> dict[str, str]:
         """Return the default authorization parameters."""
         if not self.api_key:
-            logger.critical(
-                "EXCHANGE_RATE_API_KEY is not set in configuration."
-            )
+            logger.critical("EXCHANGE_RATE_API_KEY is not set in configuration.")
         return {"access_key": self.api_key}
 
     async def get_latest_rates(
@@ -37,18 +35,13 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
             params["symbols"] = ",".join(s.upper() for s in symbols)
 
         try:
-            data = await http_client.request(
-                "GET", url, params=params
-            )
-            return {
-                k: float(v) for k, v in data.get("rates", {}).items()
-            }
+            data = await http_client.request("GET", url, params=params)
+            return {k: float(v) for k, v in data.get("rates", {}).items()}
         except InvalidCurrencyException:
             raise
         except Exception as exc:
             logger.warn(
-                "Failed to fetch latest rates, "
-                "attempting EUR base fallback",
+                "Failed to fetch latest rates, attempting EUR base fallback",
                 base=base,
                 error=str(exc),
             )
@@ -63,16 +56,12 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
                 base_to_eur_rate = eur_rates[base.upper()]
                 converted_rates = {}
                 for cur, rate_to_eur in eur_rates.items():
-                    converted_rates[cur] = (
-                        rate_to_eur / base_to_eur_rate
-                    )
+                    converted_rates[cur] = rate_to_eur / base_to_eur_rate
 
                 if symbols:
                     symbols_upper = {s.upper() for s in symbols}
                     return {
-                        k: v
-                        for k, v in converted_rates.items()
-                        if k in symbols_upper
+                        k: v for k, v in converted_rates.items() if k in symbols_upper
                     }
                 return converted_rates
             raise
@@ -97,45 +86,33 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
             params["symbols"] = ",".join(s.upper() for s in symbols)
 
         try:
-            data = await http_client.request(
-                "GET", url, params=params
-            )
-            return {
-                k: float(v) for k, v in data.get("rates", {}).items()
-            }
+            data = await http_client.request("GET", url, params=params)
+            return {k: float(v) for k, v in data.get("rates", {}).items()}
         except InvalidCurrencyException:
             raise
         except Exception as exc:
             logger.warn(
-                "Failed to fetch historical rates, "
-                "attempting EUR base fallback",
+                "Failed to fetch historical rates, attempting EUR base fallback",
                 date=date,
                 base=base,
                 error=str(exc),
             )
             if base.upper() != "EUR":
-                eur_rates = await self.get_historical_rates(
-                    date=date, base="EUR"
-                )
+                eur_rates = await self.get_historical_rates(date=date, base="EUR")
                 if base.upper() not in eur_rates:
                     raise InvalidCurrencyException(
-                        f"Currency '{base}' is not supported "
-                        f"on date '{date}'."
+                        f"Currency '{base}' is not supported on date '{date}'."
                     ) from exc
 
                 base_to_eur_rate = eur_rates[base.upper()]
                 converted_rates = {}
                 for cur, rate_to_eur in eur_rates.items():
-                    converted_rates[cur] = (
-                        rate_to_eur / base_to_eur_rate
-                    )
+                    converted_rates[cur] = rate_to_eur / base_to_eur_rate
 
                 if symbols:
                     symbols_upper = {s.upper() for s in symbols}
                     return {
-                        k: v
-                        for k, v in converted_rates.items()
-                        if k in symbols_upper
+                        k: v for k, v in converted_rates.items() if k in symbols_upper
                     }
                 return converted_rates
             raise
@@ -157,23 +134,16 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
             params["date"] = date
 
         try:
-            data = await http_client.request(
-                "GET", url, params=params
-            )
+            data = await http_client.request("GET", url, params=params)
             return {
                 "rate": float(data["info"]["rate"]),
                 "result": float(data["result"]),
                 "timestamp": int(data["info"]["timestamp"]),
-                "date": (
-                    data.get("date")
-                    or date
-                    or datetime.date.today().isoformat()
-                ),
+                "date": (data.get("date") or date or datetime.date.today().isoformat()),
             }
         except Exception as exc:
             logger.warn(
-                "Convert endpoint failed, "
-                "falling back to rate lookup",
+                "Convert endpoint failed, falling back to rate lookup",
                 error=str(exc),
             )
             if date:
@@ -190,8 +160,7 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
 
             if to_currency.upper() not in rates:
                 raise InvalidCurrencyException(
-                    f"Could not convert from "
-                    f"{from_currency} to {to_currency}."
+                    f"Could not convert from {from_currency} to {to_currency}."
                 ) from exc
 
             rate = rates[to_currency.upper()]
@@ -199,12 +168,8 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
             return {
                 "rate": rate,
                 "result": result,
-                "timestamp": int(
-                    datetime.datetime.now(datetime.UTC).timestamp()
-                ),
-                "date": (
-                    date or datetime.date.today().isoformat()
-                ),
+                "timestamp": int(datetime.datetime.now(datetime.UTC).timestamp()),
+                "date": (date or datetime.date.today().isoformat()),
             }
 
     async def get_timeseries(
@@ -224,20 +189,15 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
             params["symbols"] = ",".join(s.upper() for s in symbols)
 
         try:
-            data = await http_client.request(
-                "GET", url, params=params
-            )
+            data = await http_client.request("GET", url, params=params)
             rates_data = data.get("rates", {})
             result = {}
             for dt, day_rates in rates_data.items():
-                result[dt] = {
-                    k: float(v) for k, v in day_rates.items()
-                }
+                result[dt] = {k: float(v) for k, v in day_rates.items()}
             return result
         except Exception as exc:
             logger.warn(
-                "Timeseries endpoint failed, "
-                "falling back to sequential requests",
+                "Timeseries endpoint failed, falling back to sequential requests",
                 error=str(exc),
             )
             start = datetime.date.fromisoformat(start_date)
@@ -246,8 +206,7 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
             days = (end - start).days
             if days > 15:
                 logger.warn(
-                    "Timeseries fallback too many days, "
-                    "truncating to 15",
+                    "Timeseries fallback too many days, truncating to 15",
                     requested_days=days,
                 )
                 start = end - datetime.timedelta(days=15)
@@ -257,18 +216,15 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
             while current <= end:
                 curr_str = current.isoformat()
                 try:
-                    day_rates = (
-                        await self.get_historical_rates(
-                            date=curr_str,
-                            base=base,
-                            symbols=symbols,
-                        )
+                    day_rates = await self.get_historical_rates(
+                        date=curr_str,
+                        base=base,
+                        symbols=symbols,
                     )
                     result[curr_str] = day_rates
                 except Exception as day_exc:
                     logger.error(
-                        "Failed to get rates for date "
-                        "in timeseries fallback",
+                        "Failed to get rates for date in timeseries fallback",
                         date=curr_str,
                         error=str(day_exc),
                     )
@@ -280,10 +236,5 @@ class ExchangeRatesAPIProvider(BaseExchangeRateProvider):
         url = f"{self.base_url}/symbols"
         params = self._get_auth_params()
 
-        data = await http_client.request(
-            "GET", url, params=params
-        )
-        return {
-            str(k): str(v)
-            for k, v in data.get("symbols", {}).items()
-        }
+        data = await http_client.request("GET", url, params=params)
+        return {str(k): str(v) for k, v in data.get("symbols", {}).items()}
