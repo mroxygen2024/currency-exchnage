@@ -1,4 +1,5 @@
 import asyncio
+import ssl
 from collections.abc import Coroutine
 from typing import Any
 
@@ -40,6 +41,9 @@ celery_app.conf.update(
         "app.modules.currency.tasks.*": {"queue": "default"},
         "app.modules.auth.tasks.*": {"queue": "default"},
     },
+    # SSL configuration for rediss:// broker/backend URLs
+    broker_use_ssl={"ssl_cert_reqs": ssl.CERT_NONE},
+    redis_backend_use_ssl={"ssl_cert_reqs": ssl.CERT_NONE},
 )
 
 # Configure Celery Beat Periodic Scheduling

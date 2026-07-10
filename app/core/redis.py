@@ -1,3 +1,5 @@
+import ssl as _ssl
+
 from redis.asyncio import ConnectionPool, Redis
 
 from app.core.config import settings
@@ -14,18 +16,24 @@ class RedisManager:
     def init_pool(self) -> None:
         """Initialize the Redis Connection Pool with configured parameters."""
         redis_url = settings.redis_url
+        use_ssl = redis_url.startswith("rediss://")
         logger.info(
             "Initializing Redis connection pool",
             host=settings.REDIS_HOST,
             port=settings.REDIS_PORT,
             db=settings.REDIS_DB,
             max_connections=settings.REDIS_MAX_CONNECTIONS,
-            use_ssl=redis_url.startswith("rediss://"),
+            use_ssl=use_ssl,
         )
+        pool_kwargs: dict = {
+            "max_connections": settings.REDIS_MAX_CONNECTIONS,
+            "decode_responses": True,
+        }
+        if use_ssl:
+            pool_kwargs["ssl_cert_reqs"] = _ssl.CERT_NONE
         self.pool = ConnectionPool.from_url(
             redis_url,
-            max_connections=settings.REDIS_MAX_CONNECTIONS,
-            decode_responses=True,  # Automatically decode responses as string UTF-8
+            **pool_kwargs,
         )
         self.client = Redis.from_pool(self.pool)
 
