@@ -79,32 +79,36 @@ def mock_exchange_rate_provider(monkeypatch) -> None:  # noqa: E501
     from app.modules.currency.providers.base import BaseExchangeRateProvider
 
     class MockProvider(BaseExchangeRateProvider):  # noqa: ARG001
-        async def get_latest_rates(  # noqa: ARG002
+        async def get_latest_rates(
             self, base: str, symbols: list[str] | None = None
         ) -> dict[str, float]:
+            _ = base, symbols
             return {}
 
-        async def get_historical_rates(  # noqa: ARG002
+        async def get_historical_rates(
             self, date: str, base: str, symbols: list[str] | None = None
         ) -> dict[str, float]:
+            _ = date, base, symbols
             return {}
 
-        async def convert(  # noqa: ARG002
+        async def convert(
             self,
             from_currency: str,
             to_currency: str,
             amount: float,
             date: str | None = None,
         ) -> dict:
+            _ = from_currency, to_currency, amount, date
             raise Exception("Mock conversion rate not found")
 
-        async def get_timeseries(  # noqa: ARG002
+        async def get_timeseries(
             self,
             start_date: str,
             end_date: str,
             base: str,
             symbols: list[str] | None = None,
         ) -> dict[str, dict[str, float]]:
+            _ = start_date, end_date, base, symbols
             return {}
 
         async def get_supported_currencies(self) -> dict[str, str]:

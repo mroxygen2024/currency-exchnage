@@ -89,7 +89,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # Content Security Policy (CSP)
-        # Relax policy for documentation endpoints (/docs, /redoc, /openapi.json) to allow CDN assets
+        # Relax policy for docs endpoints to allow CDN assets
         path = request.url.path.rstrip("/")
         if path in ("/docs", "/redoc", "/openapi.json"):
             response.headers["Content-Security-Policy"] = (
