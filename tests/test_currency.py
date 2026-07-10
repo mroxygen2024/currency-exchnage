@@ -1,8 +1,9 @@
+from unittest.mock import patch
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from unittest.mock import patch
 
 from app.modules.currency.models import CurrencyConversion, CurrencyRate
 
@@ -533,9 +534,7 @@ async def test_get_rate_provider_invalid_api_key(db_session: AsyncSession) -> No
     mock_redis = AsyncMock()
     mock_redis.get.return_value = None
 
-    with patch(
-        "app.modules.currency.services.get_exchange_rate_provider"
-    ) as mock_prov:
+    with patch("app.modules.currency.services.get_exchange_rate_provider") as mock_prov:
         mock_prov.return_value.get_latest_rates.side_effect = InvalidApiKeyException()
         with pytest.raises(InvalidApiKeyException):
             await get_rate(db_session, mock_redis, "USD", "EUR")
@@ -552,9 +551,7 @@ async def test_get_rate_provider_rate_limit(db_session: AsyncSession) -> None:
     mock_redis = AsyncMock()
     mock_redis.get.return_value = None
 
-    with patch(
-        "app.modules.currency.services.get_exchange_rate_provider"
-    ) as mock_prov:
+    with patch("app.modules.currency.services.get_exchange_rate_provider") as mock_prov:
         mock_prov.return_value.get_latest_rates.side_effect = (
             RateLimitExceededException()
         )
@@ -573,9 +570,7 @@ async def test_get_rate_provider_downtime(db_session: AsyncSession) -> None:
     mock_redis = AsyncMock()
     mock_redis.get.return_value = None
 
-    with patch(
-        "app.modules.currency.services.get_exchange_rate_provider"
-    ) as mock_prov:
+    with patch("app.modules.currency.services.get_exchange_rate_provider") as mock_prov:
         mock_prov.return_value.get_latest_rates.side_effect = (
             ProviderDowntimeException()
         )
@@ -594,9 +589,7 @@ async def test_get_rate_provider_generic_error(db_session: AsyncSession) -> None
     mock_redis = AsyncMock()
     mock_redis.get.return_value = None
 
-    with patch(
-        "app.modules.currency.services.get_exchange_rate_provider"
-    ) as mock_prov:
+    with patch("app.modules.currency.services.get_exchange_rate_provider") as mock_prov:
         mock_prov.return_value.get_latest_rates.side_effect = (
             ExchangeRateProviderException()
         )
@@ -618,7 +611,7 @@ async def test_convert_currency_cache_hit(db_session: AsyncSession) -> None:
     async def mock_get(key):
         return cache_store.get(key)
 
-    async def mock_setex(key, ttl, value):
+    async def mock_setex(key, _ttl, value):
         cache_store[key] = value
 
     mock_redis.get.side_effect = mock_get
@@ -645,9 +638,7 @@ async def test_convert_currency_provider_fallback(db_session: AsyncSession) -> N
     mock_redis = AsyncMock()
     mock_redis.get.return_value = None
 
-    with patch(
-        "app.modules.currency.services.get_exchange_rate_provider"
-    ) as mock_prov:
+    with patch("app.modules.currency.services.get_exchange_rate_provider") as mock_prov:
         mock_prov.return_value.get_supported_currencies.return_value = {
             "USD": "US Dollar",
             "EUR": "Euro",
@@ -662,7 +653,9 @@ async def test_convert_currency_provider_fallback(db_session: AsyncSession) -> N
 
 
 @pytest.mark.anyio
-async def test_convert_currency_provider_not_supported(db_session: AsyncSession) -> None:
+async def test_convert_currency_provider_not_supported(
+    db_session: AsyncSession,
+) -> None:
     """Verify convert_currency raises BadRequestException for unsupported currencies."""
     from unittest.mock import AsyncMock
 
@@ -684,7 +677,6 @@ async def test_list_history_with_filters(db_session: AsyncSession) -> None:
     from unittest.mock import AsyncMock
 
     from app.modules.auth.models import User
-    from app.modules.currency.models import CurrencyConversion
     from app.modules.currency.services import convert_currency, list_history
 
     mock_redis = AsyncMock()
@@ -720,13 +712,16 @@ async def test_list_history_with_filters(db_session: AsyncSession) -> None:
 
     now = datetime.now(UTC)
     res = await list_history(
-        db_session, user, start_date=now - timedelta(hours=1), end_date=now + timedelta(hours=1)
+        db_session,
+        user,
+        start_date=now - timedelta(hours=1),
+        end_date=now + timedelta(hours=1),
     )
     assert res["total"] == 2
 
 
 @pytest.mark.anyio
-async def test_get_supported_currencies_fallback(db_session: AsyncSession) -> None:
+async def test_get_supported_currencies_fallback() -> None:
     """Verify get_supported_currencies returns fallback on provider failure."""
     from unittest.mock import AsyncMock, patch
 
@@ -735,9 +730,7 @@ async def test_get_supported_currencies_fallback(db_session: AsyncSession) -> No
     mock_redis = AsyncMock()
     mock_redis.get.return_value = None
 
-    with patch(
-        "app.modules.currency.services.get_exchange_rate_provider"
-    ) as mock_prov:
+    with patch("app.modules.currency.services.get_exchange_rate_provider") as mock_prov:
         mock_prov.return_value.get_supported_currencies.side_effect = Exception(
             "Provider down"
         )
@@ -748,7 +741,7 @@ async def test_get_supported_currencies_fallback(db_session: AsyncSession) -> No
 
 
 @pytest.mark.anyio
-async def test_get_currency_symbols_fallback(db_session: AsyncSession) -> None:
+async def test_get_currency_symbols_fallback() -> None:
     """Verify get_currency_symbols returns fallback on provider failure."""
     from unittest.mock import AsyncMock, patch
 
@@ -757,9 +750,7 @@ async def test_get_currency_symbols_fallback(db_session: AsyncSession) -> None:
     mock_redis = AsyncMock()
     mock_redis.get.return_value = None
 
-    with patch(
-        "app.modules.currency.services.get_exchange_rate_provider"
-    ) as mock_prov:
+    with patch("app.modules.currency.services.get_exchange_rate_provider") as mock_prov:
         mock_prov.return_value.get_supported_currencies.side_effect = Exception(
             "Provider down"
         )
@@ -773,7 +764,6 @@ async def test_get_currency_symbols_fallback(db_session: AsyncSession) -> None:
 async def test_get_rate_trends_basic(db_session: AsyncSession) -> None:
     """Verify get_rate_trends returns trends data from DB."""
     from datetime import UTC, datetime, timedelta
-
     from unittest.mock import AsyncMock
 
     from app.modules.currency.models import CurrencyRateHistory
@@ -861,7 +851,6 @@ async def test_get_rate_trends_invalid_codes(db_session: AsyncSession) -> None:
 @pytest.mark.anyio
 async def test_get_analytics(db_session: AsyncSession) -> None:
     """Verify get_analytics computes stats from DB."""
-    import json
     from unittest.mock import AsyncMock
 
     from app.modules.auth.models import User
@@ -926,7 +915,7 @@ async def test_stream_history_csv(db_session: AsyncSession) -> None:
 async def test_ws_endpoint_subscribe_and_unsubscribe() -> None:
     """Verify WebSocket subscribe/unsubscribe handlers."""
     import json
-    from unittest.mock import AsyncMock, MagicMock
+    from unittest.mock import AsyncMock
 
     from app.modules.currency.websocket import ws_rates_endpoint
 
@@ -958,7 +947,9 @@ async def test_ws_endpoint_subscribe_and_unsubscribe() -> None:
     mock_ws.receive_json.side_effect = fake_receive
 
     # Mock get_redis to raise so initial rate push fails gracefully
-    with patch("app.modules.currency.websocket.get_redis", side_effect=Exception("no redis")):
+    with patch(
+        "app.modules.currency.websocket.get_redis", side_effect=Exception("no redis")
+    ):
         await ws_rates_endpoint(mock_ws)
 
     mock_ws.accept.assert_called_once()
@@ -982,7 +973,10 @@ async def test_ws_endpoint_missing_action() -> None:
         idx = call_count[0]
         call_count[0] += 1
         if idx == 0:
-            return {"type": "websocket.receive", "text": json.dumps({"pairs": ["USDEUR"]})}
+            return {
+                "type": "websocket.receive",
+                "text": json.dumps({"pairs": ["USDEUR"]}),
+            }
         return {"type": "websocket.disconnect"}
 
     mock_ws.receive_json.side_effect = fake_receive

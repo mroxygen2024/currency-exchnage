@@ -83,9 +83,7 @@ async def test_refresh_cache_task(
     # Verify rates cache key was warmed in Redis
     cache_key = "rate:USD:EUR"
     mock_redis.setex.assert_called()
-    cache_calls = [
-        c for c in mock_redis.setex.call_args_list if c.args[0] == cache_key
-    ]
+    cache_calls = [c for c in mock_redis.setex.call_args_list if c.args[0] == cache_key]
     assert len(cache_calls) >= 1
     import json as _json
 
